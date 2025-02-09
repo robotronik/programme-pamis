@@ -9,7 +9,11 @@
 void usart1Setup(void);
 
 
-bool usart1recev(uint16_t* data);
+bool usart1recev(uint8_t* data);
+
+void usartSend1Data(const uint8_t *data, int size);
+
+void usart1flushSerial(void);
 
 //Send information on uart2
 //1000 char max

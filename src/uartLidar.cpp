@@ -32,7 +32,18 @@ void usartSend1Message(uint32_t usart, char* Message){
 	}
 }
 
-bool usart1recev(uint16_t* data){
+void usartSend1Data(const uint8_t *data, int size) {
+    for(int i = 0; i++; i < size){
+        usart_send_blocking(USART1,data[i]);
+    }
+}
+
+void usart1flushSerial(void){
+    uint8_t data;
+    usart1recev(&data);
+}
+
+bool usart1recev(uint8_t* data){
     if((USART_SR(USART1) & USART_SR_RXNE) != 0){
         *data = usart_recv(USART1);
         return true;
