@@ -166,12 +166,13 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
     }
 
     size_t recvSize = 0;
-    while (recvSize < response_header.size+1)
+    while (recvSize < sizeof(info))
     {
         if(usart1recev(&(reinterpret_cast<uint8_t *>(&info))[recvSize])){
             recvSize ++;
         }
     }
+    usartprintf("FFFFFFIN\n");
 
     crcSum = 0;
     crcSum += response_header.address;
@@ -198,6 +199,15 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
     d_compensateB0 = info.u_compensateB0 / 10000.00;
     d_compensateB1 = info.u_compensateB1 / 10000.00;
     bias = double(info.bias) * 0.1;
+    usartprintf("> %d\n",u_compensateK0);
+    usartprintf("> %d\n",u_compensateK1);
+    usartprintf("> %d\n",u_compensateB0);
+    usartprintf("> %d\n",u_compensateB1);
+    usartprintf("> %lf\n",d_compensateK0);
+    usartprintf("> %lf\n",d_compensateK1);
+    usartprintf("> %lf\n",d_compensateB0);
+    usartprintf("> %lf\n",d_compensateB1);
+    usartprintf("> %lf\n",bias);
   }
 
   return RESULT_OK;

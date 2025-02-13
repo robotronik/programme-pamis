@@ -18,13 +18,22 @@ int main(void)
 
 
 	//WAIT
-	delay_ms(3000);
-	usartprintf("Start\n");
+    delay_ms(1000);
+    usartprintf("Start\n");
 
     uint8_t data;
     sequence sendMessage;
 
-	while (1){
+
+
+    CYdLidar laser;
+    gs_device_para info;
+    laser.getDevicePara(info);
+
+    while (1){
+    }
+
+    while (1){
         sendMessage.interval([](){
             usart1printf("ok\n");
         },1000);
@@ -32,9 +41,6 @@ int main(void)
             usartprintf("%c",data);
         }
 	}
-
-
-    CYdLidar laser;
     // //<! fixed angle resolution
     // laser.setFixedResolution(false);
     // //<! rotate 180

@@ -6,7 +6,49 @@
 void _uart1Clock_setup(void);
 void gpio1_setup(void);
 
+#define FIFO_SIZE 64
+typedef struct {
+    uint8_t buffer[FIFO_SIZE];
+    uint8_t head;
+    uint8_t tail;
+} fifo_t;
+
+volatile fifo_t uart_fifo;
+
+void fifo_push(volatile fifo_t *fifo, uint8_t data) {
+    uint8_t next = (fifo->head + 1) % FIFO_SIZE;
+    if (next != fifo->tail) {
+        fifo->buffer[fifo->head] = data;
+        fifo->head = next;
+    }
+}
+
+int fifo_empty(volatile fifo_t *fifo) {
+    return fifo->head == fifo->tail;
+}
+
+uint8_t fifo_pop(volatile fifo_t *fifo) {
+    if (fifo->head == fifo->tail) {
+        return 0;
+    }
+    uint8_t data = fifo->buffer[fifo->tail];
+    fifo->tail = (fifo->tail + 1) % FIFO_SIZE;
+    return data;
+}
+
+void usart1_isr(void) {
+    if (usart_get_flag(USART1, USART_SR_RXNE)) {
+        uint8_t data = usart_recv(USART1);
+        fifo_push(&uart_fifo, data);
+    }
+}
+
+
+
 void usart1Setup(void){
+
+    uart_fifo.head = 0;
+    uart_fifo.tail = 0;
 
     _uart1Clock_setup();
 	gpio1_setup();
@@ -18,6 +60,10 @@ void usart1Setup(void){
 	usart_set_mode(USART1, USART_MODE_TX_RX);
 	usart_set_parity(USART1, USART_PARITY_NONE);
 	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
+
+    //interupt
+    usart_enable_rx_interrupt(USART1);
+    nvic_enable_irq(NVIC_USART1_IRQ);
 
 	/* Finally enable the USART. */
 	usart_enable(USART1);
@@ -33,7 +79,7 @@ void usartSend1Message(uint32_t usart, char* Message){
 }
 
 void usartSend1Data(const uint8_t *data, int size) {
-    for(int i = 0; i++; i < size){
+    for(int i = 0; i < size; i++){
         usart_send_blocking(USART1,data[i]);
     }
 }
@@ -44,8 +90,8 @@ void usart1flushSerial(void){
 }
 
 bool usart1recev(uint8_t* data){
-    if((USART_SR(USART1) & USART_SR_RXNE) != 0){
-        *data = usart_recv(USART1);
+    if(!fifo_empty(&uart_fifo)){
+        *data = fifo_pop(&uart_fifo);
         return true;
     }
     return false;
