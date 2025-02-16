@@ -18,7 +18,7 @@ int main(void)
 
 
 	//WAIT
-    delay_ms(1000);
+    delay_ms(3000);
     usartprintf("Start\n");
 
     uint8_t data;
@@ -29,6 +29,8 @@ int main(void)
     CYdLidar laser;
     gs_device_para info;
     laser.getDevicePara(info);
+    laser.doProcessSimple();
+    laser.printbuffer();
 
     while (1){
     }
