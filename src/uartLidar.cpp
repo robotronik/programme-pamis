@@ -15,11 +15,16 @@ typedef struct {
 
 volatile fifo_t uart_fifo;
 
-void fifo_push(volatile fifo_t *fifo, uint8_t data) {
+int fifo_full(volatile fifo_t *fifo) {
     uint8_t next = (fifo->head + 1) % FIFO_SIZE;
-    if (next != fifo->tail) {
+    return next == fifo->tail;
+}
+
+
+void fifo_push(volatile fifo_t *fifo, uint8_t data) {
+    if (!fifo_full(fifo)) {
         fifo->buffer[fifo->head] = data;
-        fifo->head = next;
+        fifo->head = (fifo->head + 1) % FIFO_SIZE;
     }
 }
 
