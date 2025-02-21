@@ -202,16 +202,16 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
     d_compensateB0[0] = info.u_compensateB0 / 10000.00;
     d_compensateB1[0] = info.u_compensateB1 / 10000.00;
     bias[0] = double(info.bias) * 0.1;
-    usartprintf("> %d\n",u_compensateK0);
-    usartprintf("> %d\n",u_compensateK1);
-    usartprintf("> %d\n",u_compensateB0);
-    usartprintf("> %d\n",u_compensateB1);
+    usartprintf("> %d\n",u_compensateK0[0]);
+    usartprintf("> %d\n",u_compensateK1[0]);
+    usartprintf("> %d\n",u_compensateB0[0]);
+    usartprintf("> %d\n",u_compensateB1[0]);
     usartprintf("FFFFFFIN\n");
-    usartprintf("> %lf\n",d_compensateK0);
-    usartprintf("> %lf\n",d_compensateK1);
-    usartprintf("> %lf\n",d_compensateB0);
-    usartprintf("> %lf\n",d_compensateB1);
-    usartprintf("> %lf\n",bias);
+    usartprintf("> %lf\n",d_compensateK0[0]);
+    usartprintf("> %lf\n",d_compensateK1[0]);
+    usartprintf("> %lf\n",d_compensateB0[0]);
+    usartprintf("> %lf\n",d_compensateB1[0]);
+    usartprintf("> %lf\n",bias[0]);
   }
 
   return RESULT_OK;
