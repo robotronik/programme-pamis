@@ -118,6 +118,11 @@ typedef enum {
 #pragma pack(1)
 #endif
 
+struct final_Node {
+  float    angle;  //sync flag
+  float   distance;//!信号质量
+} __attribute__((packed)) ;
+
 struct node_info {
   uint8_t    sync_flag;  //sync flag
   uint16_t   sync_quality;//!信号质量

@@ -11,6 +11,9 @@
 #define RESULT_OK   true
 
 #define MAX_SCAN_NODES 160
+#define HEIGHT 100
+#define WIDTH (HEIGHT*2)
+#define MAX_RANGE 500
 
 class CYdLidar
 {
@@ -31,6 +34,7 @@ private:
     bool m_SingleChannel = false;
 
     static node_info scan_node_buf[MAX_SCAN_NODES];
+    static final_Node final_node_buf[MAX_SCAN_NODES];
 
     gs2_node_package package;
     bool isValidPoint;
@@ -46,8 +50,8 @@ private:
     float   m_AngleOffset;
     bool m_Reversion = false;
     bool m_Inverted = false;//
-    float m_MaxRange          = 64.0;
-    float m_MinRange          = 0.01;
+    float m_MaxRange          = 1000;
+    float m_MinRange          = 30;
 public:
     CYdLidar(/* args */);
 
@@ -66,6 +70,7 @@ public:
     bool doProcessSimple(void);
     bool isRangeValid(double reading) const;
     bool printbuffer(void);
+    void printLidarPoints(void);
 
     ~CYdLidar();
 };

@@ -2,6 +2,7 @@
 #include "math.h"
 
 node_info CYdLidar::scan_node_buf[MAX_SCAN_NODES];
+final_Node CYdLidar::final_node_buf[MAX_SCAN_NODES];
 uint8_t* globalRecvBuffer = new uint8_t[sizeof(gs2_node_package)];
 
 CYdLidar::CYdLidar(/* args */)
@@ -598,11 +599,12 @@ bool CYdLidar::waitScanData(node_info *nodebuffer, size_t &count){
         }
         nodebuffer[recvNodeCount++] = node;
 
-        if (!package_Sample_Index)
-        {
-            count = recvNodeCount;
-            return RESULT_OK;
-        }
+        // if (!package_Sample_Index)
+        // {
+        //     count = recvNodeCount;
+        //     usartprintf("shit2\n");
+        //     return RESULT_OK;
+        // }
 
         if (recvNodeCount == count) {
             return RESULT_OK;
@@ -656,9 +658,9 @@ bool CYdLidar::doProcessSimple(void){
 
 //            printf("%lu %f %f\n", i, angles::to_degrees(angle), range);
 
-        scan_node_buf[i].angle_q6_checkbit = angle;
-        scan_node_buf[i].distance_q2 = range;
-        scan_node_buf[i].sync_quality = intensity;
+        final_node_buf[i].angle = angle;
+        final_node_buf[i].distance = range;
+        //scan_node_buf[i].sync_quality = intensity;
 
     }
 
@@ -671,13 +673,51 @@ bool CYdLidar::printbuffer(void){
 
     for (size_t i=0; i<MAX_SCAN_NODES; ++i)
     {
-        usartprintf("%d %.02f %.02f\n", i, scan_node_buf[i].angle_q6_checkbit * 180.0 / M_PI, scan_node_buf[i].distance_q2);
+        usartprintf("%d %.02f %.02f\n", i, final_node_buf[i].angle * 180.0 / M_PI, final_node_buf[i].distance);
     }
     usartprintf("\n");
 
     return true;
 
 }
+
+void CYdLidar::printLidarPoints(void) {
+    char grid[HEIGHT][WIDTH];
+
+    for (int y = 0; y < HEIGHT; ++y) {
+        for (int x = 0; x < WIDTH; ++x) {
+            grid[y][x] = ' ';
+        }
+    }
+
+    int centerX = WIDTH / 2;
+    int centerY = HEIGHT / 2;
+    grid[centerY][0] = 'O';
+
+    for (size_t i = 0; i < MAX_SCAN_NODES; ++i) {
+        double angle = final_node_buf[i].angle;
+        double range = final_node_buf[i].distance;
+
+        if(range != 0){
+            if (range > MAX_RANGE) range = MAX_RANGE;
+
+            int x = (int)(cos(angle) * range / MAX_RANGE * (WIDTH / 2));
+            int y = (int)(sin(angle) * range / MAX_RANGE * (HEIGHT / 2)) + centerY;
+
+            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+                grid[y][x] = '*';
+            }
+        }
+    }
+
+    for (int y = 0; y < HEIGHT; ++y) {
+        for (int x = 0; x < WIDTH; ++x) {
+            usartprintf("%c", grid[y][x]);
+        }
+        usartprintf("\n");
+    }
+}
+
 
 bool CYdLidar::isRangeValid(double reading) const {
     if (reading >= m_MinRange && reading <= m_MaxRange) {
