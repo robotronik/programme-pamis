@@ -1,21 +1,21 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.h
-  * @brief          : Header for main.c file.
-  *                   This file contains the common defines of the application.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2025 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.h
+ * @brief          : Header for main.c file.
+ *                   This file contains the common defines of the application.
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2025 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
@@ -23,7 +23,8 @@
 #define __MAIN_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 /* Includes ------------------------------------------------------------------*/
@@ -49,10 +50,9 @@ extern "C" {
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+// void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
@@ -69,12 +69,12 @@ void Error_Handler(void);
 #define DIR2_GPIO_Port GPIOA
 #define EN_STEPPER_Pin GPIO_PIN_4
 #define EN_STEPPER_GPIO_Port GPIOA
-#define IMAGE_BATT_Pin GPIO_PIN_6
-#define IMAGE_BATT_GPIO_Port GPIOA
+// #define IMAGE_BATT_Pin GPIO_PIN_6
+// #define IMAGE_BATT_GPIO_Port GPIOA
 #define LED_USER_Pin GPIO_PIN_7
 #define LED_USER_GPIO_Port GPIOA
-#define SERVO3_Pin GPIO_PIN_0
-#define SERVO3_GPIO_Port GPIOB
+// #define SERVO3_Pin GPIO_PIN_0
+// #define SERVO3_GPIO_Port GPIOB
 #define SW_USER_Pin GPIO_PIN_10
 #define SW_USER_GPIO_Port GPIOA
 #define SW_TIRETTE_Pin GPIO_PIN_11
@@ -84,20 +84,20 @@ void Error_Handler(void);
 #define SW_TEAM_GPIO_Port GPIOA
 #define ELECTROMAGNET_Pin GPIO_PIN_15
 #define ELECTROMAGNET_GPIO_Port GPIOA
-#define USART2_DEBUG_Pin GPIO_PIN_3
-#define USART2_DEBUG_GPIO_Port GPIOB
-#define SERVO1_Pin GPIO_PIN_4
-#define SERVO1_GPIO_Port GPIOB
-#define SERVO2_Pin GPIO_PIN_5
-#define SERVO2_GPIO_Port GPIOB
+// #define USART2_DEBUG_Pin GPIO_PIN_3
+// #define USART2_DEBUG_GPIO_Port GPIOB
+// #define SERVO1_Pin GPIO_PIN_4
+// #define SERVO1_GPIO_Port GPIOB
+// #define SERVO2_Pin GPIO_PIN_5
+// #define SERVO2_GPIO_Port GPIOB
 #define TX_LIDAR_Pin GPIO_PIN_6
 #define TX_LIDAR_GPIO_Port GPIOB
 #define RX_LIDAR_Pin GPIO_PIN_7
 #define RX_LIDAR_GPIO_Port GPIOB
 
-/* USER CODE BEGIN Private defines */
+  /* USER CODE BEGIN Private defines */
 
-/* USER CODE END Private defines */
+  /* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }

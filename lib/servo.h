@@ -1,6 +1,14 @@
 #ifndef SERVO_H
 #define SERVO_H
 
+/*****************
+ *  Rixae Dufour - CDFR 2025 PAMIS
+ *  ROBOTRONIK - mars 2025
+ *
+ *  Il y a 3 servo (PB4,PB5,PB0)
+ *
+ *******************/
+
 #include "stm32g4xx_hal.h"
 
 #define SERVO_MIN_PERIOD 1000
@@ -10,6 +18,7 @@
 #define SERVO_MAX_ANGLE 180
 
 #define SERVO_TIMER TIM3
+#define SERVO_TIM_PWM 
 
 #define SERVO1_CHAN TIM_CHANNEL_1
 #define SERVO2_CHAN TIM_CHANNEL_2
@@ -34,4 +43,4 @@ void servoDisable(uint32_t numServo);
 void servoWrite(uint8_t numServo, uint16_t period);
 void servoSetAngle(uint8_t numServo, uint16_t angle);
 
-#endif SERVO_H
+#endif
