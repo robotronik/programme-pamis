@@ -100,7 +100,7 @@ int main(void)
     // servoWrite(SERVO2_CHAN, 1500);
     // servoWrite(SERVO3_CHAN, 1500);
 
-    HAL_Delay(5000);
+    HAL_Delay(50);
 
     // Éteindre la LED
     // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_7);
