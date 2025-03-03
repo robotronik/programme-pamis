@@ -27,10 +27,7 @@ int main(void)
 
 
     CYdLidar laser;
-    gs_device_para info;
-    laser.stopScan();
-    laser.getDevicePara(info);
-    laser.startScan(false);
+    laser.startScan();
     delay_ms(1000);
     laser.doProcessSimple();
     laser.printbuffer();

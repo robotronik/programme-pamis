@@ -44,35 +44,20 @@ void CYdLidar::sendCommand(uint8_t cmd,const void *payload,size_t payloadsize)
     usartSend1Data(&checksum, 1);
 }
 
-bool CYdLidar::startScan(bool force){
-    bool ans;
+bool CYdLidar::startScan(){
+    gs_lidar_ans_header response_header;
+    gs_device_para gs2_info;
 
     stopScan();
     getDeviceAddress();
-
-    gs_device_para gs2_info;
     getDevicePara(gs2_info);
-    {
-        usart1flushSerial();
-        sendCommand(force ? LIDAR_CMD_FORCE_SCAN : GS_LIDAR_CMD_SCAN);
-
-        if (!m_SingleChannel)
-        {
-            gs_lidar_ans_header response_header;
-
-            if ((ans = waitResponseHeader(&response_header)) != RESULT_OK) {
-                return ans;
-            }
-
-            if (response_header.type != GS_LIDAR_ANS_SCAN) {
-                usartprintf("[CYdLidar] Response to start scan type error!\n");
-                return RESULT_FAIL;
-            }
-        }
-
+    sendCommand(GS_LIDAR_CMD_SCAN);
+    waitResponseHeader(&response_header);
+    if (response_header.type != GS_LIDAR_ANS_SCAN) {
+        usartprintf("[YDLIDAR_ERROR] START SCAN FAIL : bad reponse\n");
+        return RESULT_FAIL;
     }
-
-    return ans;
+    return RESULT_OK;
 }
 
 bool CYdLidar::getDeviceAddress(){
@@ -83,7 +68,7 @@ bool CYdLidar::getDeviceAddress(){
 
 
     if (response_header.type != GS_LIDAR_CMD_GET_ADDRESS) {
-        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_ADDRESS FAIL\n");
+        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_ADDRESS FAIL : bad reponse\n");
         return RESULT_FAIL;
     }
     usartprintf("[YDLIDAR_INFO] Lidar module count %d\n", (response_header.address << 1) + 1);
@@ -99,7 +84,7 @@ bool CYdLidar::stopScan(){
     waitResponseHeader(&response_header);
 
     if(response_header.type != GS_LIDAR_CMD_STOP) {
-        usartprintf("[YDLIDAR_ERROR] STOP_SCAN FAIL\n");
+        usartprintf("[YDLIDAR_ERROR] STOP_SCAN FAIL : bad reponse\n");
         return RESULT_FAIL;
     }
     usartprintf("[YDLIDAR_INFO] stop scan\n");
@@ -108,33 +93,30 @@ bool CYdLidar::stopScan(){
 
 
 bool CYdLidar::getDevicePara(gs_device_para &info) {
-  bool  ans;
-  uint8_t crcSum, mdNum;
-  uint8_t *pInfo = reinterpret_cast<uint8_t *>(&info);
-
-  usart1flushSerial();
-  sendCommand(GS_LIDAR_CMD_GET_PARAMETER);
-  {
-
+    uint8_t crcSum;
+    uint8_t *pInfo = reinterpret_cast<uint8_t *>(&info);
     gs_lidar_ans_header response_header;
-    if ((ans = waitResponseHeader(&response_header)) != RESULT_OK) {
-        return ans;
-    }
+
+    usart1flushSerial();
+    sendCommand(GS_LIDAR_CMD_GET_PARAMETER);
+    waitResponseHeader(&response_header);
+
     if (response_header.type != GS_LIDAR_CMD_GET_PARAMETER) {
+        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_PARA FAIL : bad reponse\n");
         return RESULT_FAIL;
     }
     if (response_header.size < (sizeof(gs_device_para) - 1)) {
+        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_PARA FAIL : reponse header to small\n");
         return RESULT_FAIL;
     }
 
     size_t recvSize = 0;
     while (recvSize < sizeof(info))
     {
-        if(usart1recev(&(reinterpret_cast<uint8_t *>(&info))[recvSize])){
+        if(usart1recev(&(pInfo[recvSize]))){
             recvSize ++;
         }
     }
-    usartprintf("FFFFFFIN\n");
 
     crcSum = 0;
     crcSum += response_header.address;
@@ -145,35 +127,30 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
         crcSum += pInfo[j];
     }
     if(crcSum != info.crc) {
+        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_PARA FAIL : bad crc\n");
         return RESULT_FAIL;
     }
 
-    mdNum = response_header.address >> 1; // 1,2,4
-    if( mdNum > 2) {
-        return RESULT_FAIL;
-    }
-    u_compensateK0[0] = info.u_compensateK0;
-    u_compensateK1[0] = info.u_compensateK1;
-    u_compensateB0[0] = info.u_compensateB0;
-    u_compensateB1[0] = info.u_compensateB1;
-    d_compensateK0[0] = info.u_compensateK0 / 10000.00;
-    d_compensateK1[0] = info.u_compensateK1 / 10000.00;
-    d_compensateB0[0] = info.u_compensateB0 / 10000.00;
-    d_compensateB1[0] = info.u_compensateB1 / 10000.00;
-    bias[0] = double(info.bias) * 0.1;
-    usartprintf("> %d\n",u_compensateK0[0]);
-    usartprintf("> %d\n",u_compensateK1[0]);
-    usartprintf("> %d\n",u_compensateB0[0]);
-    usartprintf("> %d\n",u_compensateB1[0]);
-    usartprintf("FFFFFFIN\n");
-    usartprintf("> %lf\n",d_compensateK0[0]);
-    usartprintf("> %lf\n",d_compensateK1[0]);
-    usartprintf("> %lf\n",d_compensateB0[0]);
-    usartprintf("> %lf\n",d_compensateB1[0]);
-    usartprintf("> %lf\n",bias[0]);
-  }
+    u_compensateK0 = info.u_compensateK0;
+    u_compensateK1 = info.u_compensateK1;
+    u_compensateB0 = info.u_compensateB0;
+    u_compensateB1 = info.u_compensateB1;
+    d_compensateK0 = info.u_compensateK0 / 10000.00;
+    d_compensateK1 = info.u_compensateK1 / 10000.00;
+    d_compensateB0 = info.u_compensateB0 / 10000.00;
+    d_compensateB1 = info.u_compensateB1 / 10000.00;
+    bias = double(info.bias) * 0.1;
+    usartprintf("> %d\n",u_compensateK0);
+    usartprintf("> %d\n",u_compensateK1);
+    usartprintf("> %d\n",u_compensateB0);
+    usartprintf("> %d\n",u_compensateB1);
+    usartprintf("> %lf\n",d_compensateK0);
+    usartprintf("> %lf\n",d_compensateK1);
+    usartprintf("> %lf\n",d_compensateB0);
+    usartprintf("> %lf\n",d_compensateB1);
+    usartprintf("> %lf\n",bias);
 
-  return RESULT_OK;
+    return RESULT_OK;
 }
 
 
@@ -267,7 +244,7 @@ bool CYdLidar::waitPackage(node_info *node)
                     break;
 
                 case 4:
-                    moduleNum = currentByte;
+                    //moduleNum = currentByte;
                     CheckSumCal += currentByte;
                     break;
 
@@ -275,7 +252,7 @@ bool CYdLidar::waitPackage(node_info *node)
                     if (currentByte != GS_LIDAR_ANS_SCAN) {
                         recvPos = 0;
                         CheckSumCal = 0;
-                        moduleNum = 0;
+                        //moduleNum = 0;
                         has_device_header = false;
                         continue;
                     }
@@ -446,22 +423,21 @@ bool CYdLidar::waitPackage(node_info *node)
 void CYdLidar::angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *dstDist)
 {
     double pixelU = n, Dist, theta, tempTheta, tempDist, tempX, tempY;
-    uint8_t mdNum = 0x03 & (moduleNum >> 1);//1,2,4
     if (n < 80)
     {
       pixelU = 80 - pixelU;
-      if (d_compensateB0[mdNum] > 1) {
-          tempTheta = d_compensateK0[mdNum] * pixelU - d_compensateB0[mdNum];
+      if (d_compensateB0 > 1) {
+          tempTheta = d_compensateK0 * pixelU - d_compensateB0;
       }
       else
       {
-          tempTheta = atan(d_compensateK0[mdNum] * pixelU - d_compensateB0[mdNum]) * 180 / M_PI;
+          tempTheta = atan(d_compensateK0 * pixelU - d_compensateB0) * 180 / M_PI;
       }
-      tempDist = (dist - Angle_Px) / cos(((Angle_PAngle + bias[mdNum]) - (tempTheta)) * M_PI / 180);
+      tempDist = (dist - Angle_Px) / cos(((Angle_PAngle + bias) - (tempTheta)) * M_PI / 180);
       tempTheta = tempTheta * M_PI / 180;
-      tempX = cos((Angle_PAngle + bias[mdNum]) * M_PI / 180) * tempDist * cos(tempTheta) + sin((Angle_PAngle + bias[mdNum]) * M_PI / 180) * (tempDist *
+      tempX = cos((Angle_PAngle + bias) * M_PI / 180) * tempDist * cos(tempTheta) + sin((Angle_PAngle + bias) * M_PI / 180) * (tempDist *
                                                                                              sin(tempTheta));
-      tempY = -sin((Angle_PAngle + bias[mdNum]) * M_PI / 180) * tempDist * cos(tempTheta) + cos((Angle_PAngle + bias[mdNum]) * M_PI / 180) * (tempDist *
+      tempY = -sin((Angle_PAngle + bias) * M_PI / 180) * tempDist * cos(tempTheta) + cos((Angle_PAngle + bias) * M_PI / 180) * (tempDist *
                                                                                               sin(tempTheta));
       tempX = tempX + Angle_Px;
       tempY = tempY - Angle_Py; //5.315
@@ -471,19 +447,19 @@ void CYdLidar::angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *ds
     else
     {
       pixelU = 160 - pixelU;
-      if (d_compensateB1[mdNum] > 1)
+      if (d_compensateB1 > 1)
       {
-          tempTheta = d_compensateK1[mdNum] * pixelU - d_compensateB1[mdNum];
+          tempTheta = d_compensateK1 * pixelU - d_compensateB1;
       }
       else
       {
-          tempTheta = atan(d_compensateK1[mdNum] * pixelU - d_compensateB1[mdNum]) * 180 / M_PI;
+          tempTheta = atan(d_compensateK1 * pixelU - d_compensateB1) * 180 / M_PI;
       }
-      tempDist = (dist - Angle_Px) / cos(((Angle_PAngle + bias[mdNum]) + (tempTheta)) * M_PI / 180);
+      tempDist = (dist - Angle_Px) / cos(((Angle_PAngle + bias) + (tempTheta)) * M_PI / 180);
       tempTheta = tempTheta * M_PI / 180;
-      tempX = cos(-(Angle_PAngle + bias[mdNum]) * M_PI / 180) * tempDist * cos(tempTheta) + sin(-(Angle_PAngle + bias[mdNum]) * M_PI / 180) * (tempDist *
+      tempX = cos(-(Angle_PAngle + bias) * M_PI / 180) * tempDist * cos(tempTheta) + sin(-(Angle_PAngle + bias) * M_PI / 180) * (tempDist *
                                                                                                sin(tempTheta));
-      tempY = -sin(-(Angle_PAngle + bias[mdNum]) * M_PI / 180) * tempDist * cos(tempTheta) + cos(-(Angle_PAngle + bias[mdNum]) * M_PI / 180) * (tempDist *
+      tempY = -sin(-(Angle_PAngle + bias) * M_PI / 180) * tempDist * cos(tempTheta) + cos(-(Angle_PAngle + bias) * M_PI / 180) * (tempDist *
                                                                                                 sin(tempTheta));
       tempX = tempX + Angle_Px;
       tempY = tempY + Angle_Py; //5.315

@@ -22,15 +22,15 @@ private:
     /* data */
     bool has_device_header;
 
-    double  d_compensateK0[3];
-    double  d_compensateK1[3];
-    double  d_compensateB0[3];
-    double  d_compensateB1[3];
-    uint16_t  u_compensateK0[3];
-    uint16_t  u_compensateK1[3];
-    uint16_t  u_compensateB0[3];
-    uint16_t  u_compensateB1[3];
-    double  bias[3];
+    double  d_compensateK0;
+    double  d_compensateK1;
+    double  d_compensateB0;
+    double  d_compensateB1;
+    uint16_t  u_compensateK0;
+    uint16_t  u_compensateK1;
+    uint16_t  u_compensateB0;
+    uint16_t  u_compensateB1;
+    double  bias;
     bool m_SingleChannel = false;
 
     static node_info scan_node_buf[MAX_SCAN_NODES];
@@ -40,7 +40,6 @@ private:
     bool isValidPoint;
     uint16_t package_Sample_Index;
     uint8_t CheckSumCal;
-    uint8_t   moduleNum;
     uint8_t CheckSum;
     bool CheckSumResult;
     bool has_package_error;
@@ -57,7 +56,7 @@ public:
 
 
     void sendCommand(uint8_t cmd, const void *payload = NULL, size_t payloadsize = 0);
-    bool startScan(bool force);
+    bool startScan();
     bool getDeviceAddress();
     bool stopScan();
     bool getDevicePara(gs_device_para &info);
