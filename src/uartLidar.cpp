@@ -91,7 +91,7 @@ void usartSend1Data(const uint8_t *data, int size) {
 
 void usart1flushSerial(void){
     uint8_t data;
-    usart1recev(&data);
+    while(usart1recev(&data));
 }
 
 bool usart1recev(uint8_t* data){

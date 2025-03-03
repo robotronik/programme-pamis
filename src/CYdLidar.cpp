@@ -14,17 +14,7 @@ CYdLidar::~CYdLidar()
 }
 
 
-bool CYdLidar::sendCommand(uint8_t cmd,
-                                    const void *payload,
-                                    size_t payloadsize)
-{
-    return sendCommand(0x00, cmd, payload, payloadsize);
-}
-
-bool CYdLidar::sendCommand(uint8_t addr,
-                                    uint8_t cmd,
-                                    const void *payload,
-                                    size_t payloadsize)
+void CYdLidar::sendCommand(uint8_t cmd,const void *payload,size_t payloadsize)
 {
     uint8_t pkt_header[12];
     cmd_packet_gs *header = reinterpret_cast<cmd_packet_gs * >(pkt_header);
@@ -35,7 +25,7 @@ bool CYdLidar::sendCommand(uint8_t addr,
     header->syncByte1 = LIDAR_CMD_SYNC_BYTE;
     header->syncByte2 = LIDAR_CMD_SYNC_BYTE;
     header->syncByte3 = LIDAR_CMD_SYNC_BYTE;
-    header->address = addr;
+    header->address = 0x00;
     header->cmd_flag = cmd;
     header->size = 0xffff&payloadsize;
     usartSend1Data(pkt_header, 8) ;
@@ -52,28 +42,19 @@ bool CYdLidar::sendCommand(uint8_t addr,
     }
 
     usartSend1Data(&checksum, 1);
-
-    return RESULT_OK;
 }
 
 bool CYdLidar::startScan(bool force){
     bool ans;
 
-    stop();
-    //checkTransDelay();
-    usart1flushSerial();
-
-    setDeviceAddress();
+    stopScan();
+    getDeviceAddress();
 
     gs_device_para gs2_info;
     getDevicePara(gs2_info);
     {
         usart1flushSerial();
-
-        if ((ans = sendCommand(force ? LIDAR_CMD_FORCE_SCAN : GS_LIDAR_CMD_SCAN)) !=
-                RESULT_OK) {
-            return ans;
-        }
+        sendCommand(force ? LIDAR_CMD_FORCE_SCAN : GS_LIDAR_CMD_SCAN);
 
         if (!m_SingleChannel)
         {
@@ -94,55 +75,34 @@ bool CYdLidar::startScan(bool force){
     return ans;
 }
 
-bool CYdLidar::setDeviceAddress(){
-    bool ans;
+bool CYdLidar::getDeviceAddress(){
+    gs_lidar_ans_header response_header;
 
-    if (m_SingleChannel) {
-        return RESULT_OK;
+    sendCommand(GS_LIDAR_CMD_GET_ADDRESS);
+    waitResponseHeader(&response_header);
+
+
+    if (response_header.type != GS_LIDAR_CMD_GET_ADDRESS) {
+        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_ADDRESS FAIL\n");
+        return RESULT_FAIL;
     }
-
-    usart1flushSerial();
-    {
-
-        if ((ans = sendCommand(GS_LIDAR_CMD_GET_ADDRESS)) != RESULT_OK) {
-            return ans;
-        }
-
-        gs_lidar_ans_header response_header;
-        if ((ans = waitResponseHeader(&response_header)) != RESULT_OK) {
-            return ans;
-        }
-
-        if (response_header.type != GS_LIDAR_CMD_GET_ADDRESS) {
-            return RESULT_FAIL;
-        }
-
-        usartprintf("[YDLIDAR] Lidar module count %d\n", (response_header.address << 1) + 1);
-    }
-
-    return RESULT_OK;
-}
-
-bool CYdLidar::stop(){
-    stopScan();
+    usartprintf("[YDLIDAR_INFO] Lidar module count %d\n", (response_header.address << 1) + 1);
 
     return RESULT_OK;
 }
 
 bool CYdLidar::stopScan(){
-    bool  ans;
-
-    if ((ans = sendCommand(GS_LIDAR_CMD_STOP)) != RESULT_OK) {
-      return ans;
-    }
     gs_lidar_ans_header response_header;
-    if ((ans = waitResponseHeader(&response_header)) != RESULT_OK) {
-        return ans;
-    }
-    if (response_header.type != GS_LIDAR_CMD_STOP) {
+
+    usart1flushSerial();
+    sendCommand(GS_LIDAR_CMD_STOP);
+    waitResponseHeader(&response_header);
+
+    if(response_header.type != GS_LIDAR_CMD_STOP) {
+        usartprintf("[YDLIDAR_ERROR] STOP_SCAN FAIL\n");
         return RESULT_FAIL;
     }
-
+    usartprintf("[YDLIDAR_INFO] stop scan\n");
     return RESULT_OK;
 }
 
@@ -153,11 +113,9 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
   uint8_t *pInfo = reinterpret_cast<uint8_t *>(&info);
 
   usart1flushSerial();
+  sendCommand(GS_LIDAR_CMD_GET_PARAMETER);
   {
 
-    if ((ans = sendCommand(GS_LIDAR_CMD_GET_PARAMETER)) != RESULT_OK) {
-      return ans;
-    }
     gs_lidar_ans_header response_header;
     if ((ans = waitResponseHeader(&response_header)) != RESULT_OK) {
         return ans;
@@ -220,70 +178,28 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
 
 
 bool CYdLidar::waitResponseHeader(gs_lidar_ans_header *header) {
-    int  recvPos     = 0;
-    uint8_t  recvBuffer[sizeof(gs_lidar_ans_header)];
-    uint8_t  *headerBuffer = reinterpret_cast<uint8_t *>(header);
-    has_device_header = false;
-    last_device_byte = 0x00;
+    uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(header);
+    size_t recvPos = 0;
+    uint8_t currentByte;
 
-    while (1) {
-      size_t remainSize = sizeof(gs_lidar_ans_header) - recvPos;
-      size_t recvSize = 0;
+    while (recvPos < sizeof(gs_lidar_ans_header)) {
 
-      while (recvSize < remainSize)
-      {
-        if(usart1recev(&(recvBuffer[recvSize]))){
-            recvSize ++;
+        while (!usart1recev(&currentByte));
+
+        if (recvPos < 4) {
+            if (currentByte == LIDAR_ANS_SYNC_BYTE1) {
+                headerBuffer[recvPos] = currentByte;
+                recvPos++;
+            } else {
+                usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
+                recvPos = 0;
+            }
+        } else {
+            headerBuffer[recvPos] = currentByte;
+            recvPos++;
         }
-      }
-
-      for (size_t pos = 0; pos < recvSize; ++pos) {
-        uint8_t currentByte = recvBuffer[pos];
-
-        switch (recvPos) {
-            case 0:
-              if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                  recvPos = 0;
-                  continue;
-              }
-              break;
-
-            case 1:
-              if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                  recvPos = 0;
-                  continue;
-              }
-              break;
-
-            case 2:
-              if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                  recvPos = 0;
-                  continue;
-              }
-              break;
-
-            case 3:
-              if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                  recvPos = 0;
-                  continue;
-              }
-              has_device_header = true;
-              break;
-
-            default:
-              break;
-        }
-
-        headerBuffer[recvPos++] = currentByte;
-        last_device_byte = currentByte;
-
-        if (has_device_header && recvPos == sizeof(gs_lidar_ans_header)) {
-          return RESULT_OK;
-        }
-      }
     }
-
-    return RESULT_FAIL;
+    return RESULT_OK;
 }
 
 

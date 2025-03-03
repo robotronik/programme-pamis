@@ -4,6 +4,7 @@
 #include "uart.h"
 #include "ydlidar_protocol.h"
 #include "angles.h"
+#include "clock.h"
 
 #define size_t uint16_t
 
@@ -20,7 +21,6 @@ class CYdLidar
 private:
     /* data */
     bool has_device_header;
-    uint8_t last_device_byte;
 
     double  d_compensateK0[3];
     double  d_compensateK1[3];
@@ -56,11 +56,9 @@ public:
     CYdLidar(/* args */);
 
 
-    bool sendCommand(uint8_t cmd, const void *payload = NULL, size_t payloadsize = 0);
-    bool sendCommand(uint8_t addr, uint8_t cmd, const void *payload = NULL, size_t payloadsize = 0);
+    void sendCommand(uint8_t cmd, const void *payload = NULL, size_t payloadsize = 0);
     bool startScan(bool force);
-    bool setDeviceAddress();
-    bool stop();
+    bool getDeviceAddress();
     bool stopScan();
     bool getDevicePara(gs_device_para &info);
     bool waitResponseHeader(gs_lidar_ans_header *header);
