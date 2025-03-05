@@ -255,11 +255,10 @@ bool CYdLidar::waitResponseHeader(gs_lidar_ans_header *header) {
 //     return RESULT_OK;
 // }
 
-bool CYdLidar::waitPackage(node_info *node)
+bool CYdLidar::scanData(node_info *node)
 {
-    int recvPos         = 0;
+    int recvPos = 0;
     uint8_t  *packageBuffer = (uint8_t *)&package;
-    isValidPoint  =  true;
     int  package_recvPos    = 0;
     uint16_t sample_lens = 0;
     has_device_header = false;
@@ -267,156 +266,109 @@ bool CYdLidar::waitPackage(node_info *node)
     gs_lidar_ans_header header;
     uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(&header);
 
-    (*node).index = 255;
-    (*node).scan_frequence  = 0;
+    node[0].index = 255;
+    node[0].scan_frequence  = 0;
 
-    if (package_Sample_Index == 0)
+
+    usartprintf("START\n");
+    usart1flushSerial();
+    waitResponseHeader(&header);
+
+    if(header.type != GS_LIDAR_ANS_SCAN) {
+        usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad reponse\n");
+        return RESULT_FAIL;
+    }
+
+    sample_lens = header.size;
+    package_recvPos = PackagePaidBytes_GS;
+    CheckSumCal = headerBuffer[4] + headerBuffer[5] + headerBuffer[6] + headerBuffer[7];
+    package_Sample_Num = sample_lens+1;
+
+    while (1)
     {
-        recvPos = 0;
-        usartprintf("START\n");
-        usart1flushSerial();
-        waitResponseHeader(&header);
-
-        if(header.type != GS_LIDAR_ANS_SCAN) {
-            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad reponse\n");
-            return RESULT_FAIL;
-        }
-
-        sample_lens = header.size;
-        package_recvPos = PackagePaidBytes_GS;
-        recvPos = PackagePaidBytes_GS;
-        CheckSumCal = headerBuffer[4] + headerBuffer[5] + headerBuffer[6] + headerBuffer[7];
-        package_Sample_Num = sample_lens+1;
-
-        if (PackagePaidBytes_GS == recvPos)
+        size_t remainSize = package_Sample_Num - recvPos;
+        size_t recvSize = 0;
+        while (recvSize < remainSize)
         {
-            recvPos = 0;
-
-            while (1)
-            {
-                size_t remainSize = package_Sample_Num - recvPos;
-                size_t recvSize = 0;
-                while (recvSize < remainSize)
-                {
-                    if(usart1recev(&(globalRecvBuffer[recvSize]))){
-                        recvSize ++;
-                    }
-                }
-
-                for (size_t pos = 0; pos < recvSize-1; pos++) {
-                    CheckSumCal += globalRecvBuffer[pos];
-                    packageBuffer[package_recvPos + recvPos] = globalRecvBuffer[pos];
-                    recvPos++;
-                }
-                CheckSum = globalRecvBuffer[recvSize-1];//crc
-                packageBuffer[package_recvPos + recvPos] = CheckSum;//crc
-                recvPos+=1;
-
-                if (package_Sample_Num == recvPos) {
-                    package_recvPos += recvPos;
-                    break;
-                }
+            if(usart1recev(&(globalRecvBuffer[recvSize]))){
+                recvSize ++;
             }
-
-            if (package_Sample_Num != recvPos) {
-                usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad package_Sample_Num\n");
-                return RESULT_FAIL;
-            }
-        } else {
-            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : BAD\n");
-            return RESULT_FAIL;
         }
 
-        if (CheckSumCal != CheckSum) {
-            CheckSumResult = false;
-            has_package_error = true;
-            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
-        } else {
-            CheckSumResult = true;
+        for (size_t pos = 0; pos < recvSize-1; pos++) {
+            CheckSumCal += globalRecvBuffer[pos];
+            packageBuffer[package_recvPos + recvPos] = globalRecvBuffer[pos];
+            recvPos++;
+        }
+        CheckSum = globalRecvBuffer[recvSize-1];//crc
+        packageBuffer[package_recvPos + recvPos] = CheckSum;//crc
+        recvPos+=1;
+
+        if (package_Sample_Num == recvPos) {
+            package_recvPos += recvPos;
+            break;
         }
     }
 
-    if (!has_package_error) {
-        if (package_Sample_Index == 0) {
-            package_index++;
-            (*node).index = package_index;
+    if (package_Sample_Num != recvPos) {
+        for(int i = 0; i < 160; i++){
+            node[i].sync_quality    = Node_Default_Quality;
+            node[i].angle_q6_checkbit = LIDAR_RESP_MEASUREMENT_CHECKBIT;
+            node[i].distance_q2      = 0;
         }
-    } else {
-        (*node).index = 255;
-        package_index = 0xff;
+        usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad package_Sample_Num\n");
+        return RESULT_FAIL;
     }
 
-    if (CheckSumResult) {
-        (*node).index = package_index;
-        (*node).scan_frequence  = scan_frequence;
+    if (CheckSumCal != CheckSum) {
+        for(int i = 0; i < 160; i++){
+
+            node[i].sync_quality    = Node_Default_Quality;
+            node[i].angle_q6_checkbit = LIDAR_RESP_MEASUREMENT_CHECKBIT;
+            node[i].distance_q2      = 0;
+        }
+        usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
+        return RESULT_FAIL;
     }
 
-    (*node).sync_quality = Node_Default_Quality;
-    (*node).stamp = 0;
-    (*node).scan_frequence = 0;
+    for(int i = 0; i < 160; i++){
+        double sampleAngle = 0;
 
-    double sampleAngle = 0;
-    if (CheckSumResult)
-    {
-        (*node).distance_q2 =
-                package.packageSample[package_Sample_Index].PakageSampleDistance;
+        node[i].sync_quality = Node_Default_Quality;
+        node[i].distance_q2 = package.packageSample[i].PakageSampleDistance;
 
         if (m_intensities) {
-            (*node).sync_quality = (uint16_t)package.packageSample[package_Sample_Index].PakageSampleQuality;
+            node[i].sync_quality = (uint16_t)package.packageSample[i].PakageSampleQuality;
         }
 
-        if (node->distance_q2 > 0)
+        if (node[i].distance_q2 > 0)
         {
-            angTransform((*node).distance_q2,package_Sample_Index,&sampleAngle,&(*node).distance_q2);
+            angTransform(node[i].distance_q2,i,&sampleAngle,&(node[i].distance_q2));
         }
 
-//        printf("%lf ", sampleAngle);
         if (sampleAngle< 0) {
-            (*node).angle_q6_checkbit = (((uint16_t)(sampleAngle * 64 + 23040)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
+            node[i].angle_q6_checkbit = (((uint16_t)(sampleAngle * 64 + 23040)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
                     LIDAR_RESP_MEASUREMENT_CHECKBIT;
         } else {
             if ((sampleAngle * 64) > 23040) {
-                (*node).angle_q6_checkbit = (((uint16_t)(sampleAngle * 64 - 23040)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
+                node[i].angle_q6_checkbit = (((uint16_t)(sampleAngle * 64 - 23040)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
                         LIDAR_RESP_MEASUREMENT_CHECKBIT;
             } else {
-                (*node).angle_q6_checkbit = (((uint16_t)(sampleAngle * 64)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
+                node[i].angle_q6_checkbit = (((uint16_t)(sampleAngle * 64)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
                         LIDAR_RESP_MEASUREMENT_CHECKBIT;
             }
         }
 
-        if(package_Sample_Index < 80){ //CT_RingStart  CT_Normal
-            if((*node).angle_q6_checkbit <= 23041){
-                (*node).distance_q2 = 0;
-                isValidPoint = false;
+        if(i < 80){ //CT_RingStart  CT_Normal
+            if(node[i].angle_q6_checkbit <= 23041){
+                node[i].distance_q2 = 0;
             }
         }else {
-            if((*node).angle_q6_checkbit > 23041){
-                (*node).distance_q2 = 0;
-                isValidPoint = false;
+            if(node[i].angle_q6_checkbit > 23041){
+                node[i].distance_q2 = 0;
             }
         }
-
-//        printf("%d(%d) ", node->distance_q2, package_Sample_Index);
-
-    } else {
-        (*node).sync_flag       = Node_NotSync;
-        (*node).sync_quality    = Node_Default_Quality;
-        (*node).angle_q6_checkbit = LIDAR_RESP_MEASUREMENT_CHECKBIT;
-        (*node).distance_q2      = 0;
-        (*node).scan_frequence  = 0;
     }
-
-    uint8_t nowPackageNum = 160;
-
-    package_Sample_Index++;
-    (*node).sync_flag = Node_NotSync;
-
-    if (package_Sample_Index >= nowPackageNum) {
-        package_Sample_Index = 0;
-        (*node).sync_flag = Node_Sync;
-        CheckSumResult = false;
-    }
-
     return RESULT_OK;
 }
 
@@ -476,40 +428,16 @@ void CYdLidar::angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *ds
     *dstDist = Dist;
 }
 
-bool CYdLidar::waitScanData(node_info *nodebuffer, size_t &count) {
-    size_t recvNodeCount = 0;
-    bool ans = RESULT_FAIL;
-
-    while (recvNodeCount < count) {
-        node_info node;
-        ans = waitPackage(&node);
-
-        if (!ans) {
-            count = recvNodeCount;
-            return ans;
-        }
-
-        nodebuffer[recvNodeCount] = node;
-        recvNodeCount++;
-    }
-    usartprintf("[YDLIDAR_ERROR] SCAN GOOD\n");
-
-    count = recvNodeCount;
-    return RESULT_OK;
-}
-
 
 bool CYdLidar::doProcessSimple(void){
 
-    uint16_t count = MAX_SCAN_NODES;
-    waitScanData(scan_node_buf,count);
+    scanData(scan_node_buf);
 
     float range = 0.0;
     float intensity = 0.0;
     float angle = 0.0;
 
-//        printf("points %lu\n", count);
-    for (size_t i = 0; i < count; i++)
+    for (size_t i = 0; i < MAX_SCAN_NODES; i++)
     {
         angle = static_cast<float>((scan_node_buf[i].angle_q6_checkbit >>
                                     LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) / 64.0f) + m_AngleOffset;
@@ -529,9 +457,6 @@ bool CYdLidar::doProcessSimple(void){
         }
 
         angle = angles::normalize_angle(angle);
-//            angle = angles::normalize_angle_positive(angle);
-
-
 
         //valid range
         if (!isRangeValid(range)) {
@@ -539,17 +464,11 @@ bool CYdLidar::doProcessSimple(void){
             intensity = 0.0;
         }
 
-//            printf("%lu %f %f\n", i, angles::to_degrees(angle), range);
-
         final_node_buf[i].angle = angle;
         final_node_buf[i].distance = range;
-        //scan_node_buf[i].sync_quality = intensity;
 
     }
-
-
     return true;
-
 }
 
 bool CYdLidar::printbuffer(void){

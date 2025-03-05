@@ -37,12 +37,9 @@ private:
     static final_Node final_node_buf[MAX_SCAN_NODES];
 
     gs2_node_package package;
-    bool isValidPoint;
     uint16_t package_Sample_Index;
     uint8_t CheckSumCal;
     uint8_t CheckSum;
-    bool CheckSumResult;
-    bool has_package_error;
     int package_index;
     uint8_t scan_frequence;
     bool m_intensities;
@@ -61,10 +58,8 @@ public:
     bool stopScan();
     bool getDevicePara(gs_device_para &info);
     bool waitResponseHeader(gs_lidar_ans_header *header);
-    bool waitResponseHeader2(gs_lidar_ans_header *header);
-    bool waitPackage(node_info *node);
+    bool scanData(node_info *node);
     void angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *dstDist);
-    bool waitScanData(node_info *nodebuffer, size_t &count);
     bool doProcessSimple(void);
     bool isRangeValid(double reading) const;
     bool printbuffer(void);
