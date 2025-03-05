@@ -29,6 +29,12 @@ int main(void)
     CYdLidar laser;
     laser.startScan();
     delay_ms(1000);
+    while (1){
+        laser.doProcessSimple();
+        laser.printLidarPoints();
+        delay_ms(1000);
+    }
+
     laser.doProcessSimple();
     laser.printbuffer();
     laser.printLidarPoints();
