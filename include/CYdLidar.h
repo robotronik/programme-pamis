@@ -61,6 +61,7 @@ public:
     bool stopScan();
     bool getDevicePara(gs_device_para &info);
     bool waitResponseHeader(gs_lidar_ans_header *header);
+    bool waitResponseHeader2(gs_lidar_ans_header *header);
     bool waitPackage(node_info *node);
     void angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *dstDist);
     bool waitScanData(node_info *nodebuffer, size_t &count);

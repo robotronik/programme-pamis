@@ -168,7 +168,7 @@ bool CYdLidar::waitResponseHeader(gs_lidar_ans_header *header) {
                 headerBuffer[recvPos] = currentByte;
                 recvPos++;
             } else {
-                usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
+                //usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
                 recvPos = 0;
             }
         } else {
@@ -180,6 +180,81 @@ bool CYdLidar::waitResponseHeader(gs_lidar_ans_header *header) {
 }
 
 
+
+
+
+// bool CYdLidar::waitPackage(node_info *node) {
+//     uint8_t *packageBuffer = reinterpret_cast<uint8_t *>(&package);
+//     uint16_t sample_lens = 0;
+//     has_device_header = false;
+//     uint16_t package_Sample_Num = 0;
+//     size_t recvPos = 0;
+//     CheckSumCal = 0;
+//     isValidPoint = true;
+//     (*node).index = 255;
+//     (*node).scan_frequence = 0;
+
+//     while (recvPos < PackagePaidBytes_GS) {
+//         uint8_t currentByte;
+//         while (!usart1recev(&currentByte)) {}
+
+//         if (recvPos < 4 && currentByte != LIDAR_ANS_SYNC_BYTE1) {
+//             recvPos = 0;
+//             continue;
+//         }
+//         if (recvPos == 3) has_device_header = true;
+
+//         packageBuffer[recvPos++] = currentByte;
+//         CheckSumCal += (recvPos >= 4) ? currentByte : 0;
+//     }
+
+//     if (!has_device_header) return RESULT_FAIL;
+
+//     sample_lens = (packageBuffer[7] << 8) | packageBuffer[6];
+//     package_Sample_Num = sample_lens + 1;
+//     recvPos = 0;
+
+//     while (recvPos < package_Sample_Num) {
+//         uint8_t currentByte;
+//         while (!usart1recev(&currentByte)) {}
+
+//         if (recvPos < package_Sample_Num - 1) {
+//             CheckSumCal += currentByte;
+//         } else {
+//             CheckSum = currentByte;
+//         }
+//         packageBuffer[PackagePaidBytes_GS + recvPos++] = currentByte;
+//     }
+
+//     if (CheckSumCal != CheckSum) {
+//         has_package_error = true;
+//         return RESULT_FAIL;
+//     }
+
+//     (*node).index = has_package_error ? 255 : ++package_index;
+//     (*node).sync_quality = Node_Default_Quality;
+//     (*node).stamp = 0;
+//     (*node).scan_frequence = 0;
+
+//     if (!has_package_error) {
+//         (*node).distance_q2 = package.packageSample[package_Sample_Index].PakageSampleDistance;
+//         if (m_intensities) {
+//             (*node).sync_quality = package.packageSample[package_Sample_Index].PakageSampleQuality;
+//         }
+//         double sampleAngle;
+//         angTransform((*node).distance_q2, package_Sample_Index, &sampleAngle, &(*node).distance_q2);
+//         (*node).angle_q6_checkbit = (((uint16_t)(sampleAngle * 64)) << LIDAR_RESP_MEASUREMENT_ANGLE_SHIFT) +
+//                                     LIDAR_RESP_MEASUREMENT_CHECKBIT;
+//     }
+
+//     package_Sample_Index++;
+//     if (package_Sample_Index >= 160) {
+//         package_Sample_Index = 0;
+//     }
+
+//     return RESULT_OK;
+// }
+
 bool CYdLidar::waitPackage(node_info *node)
 {
     int recvPos         = 0;
@@ -189,6 +264,8 @@ bool CYdLidar::waitPackage(node_info *node)
     uint16_t sample_lens = 0;
     has_device_header = false;
     uint16_t package_Sample_Num = 0;
+    gs_lidar_ans_header header;
+    uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(&header);
 
     (*node).index = 255;
     (*node).scan_frequence  = 0;
@@ -196,98 +273,20 @@ bool CYdLidar::waitPackage(node_info *node)
     if (package_Sample_Index == 0)
     {
         recvPos = 0;
+        usartprintf("START\n");
+        usart1flushSerial();
+        waitResponseHeader(&header);
 
-        while (1)
-        {
-            size_t remainSize   = PackagePaidBytes_GS - recvPos;
-            size_t recvSize     = 0;
-            CheckSumCal = 0;
-
-            while (recvSize < remainSize)
-            {
-                if(usart1recev(&(globalRecvBuffer[recvSize]))){
-                    recvSize ++;
-                }
-            }
-
-            for (size_t pos = 0; pos < recvSize; ++pos)
-            {
-                uint8_t currentByte = globalRecvBuffer[pos];
-                switch (recvPos) {
-                case 0:
-                    if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                        recvPos = 0;
-                        continue;
-                    }
-                    break;
-
-                case 1:
-                    if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                        recvPos = 0;
-                        continue;
-                    }
-                    break;
-
-                case 2:
-                    if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                        recvPos = 0;
-                        continue;
-                    }
-                    break;
-
-                case 3:
-                    if (currentByte != LIDAR_ANS_SYNC_BYTE1) {
-                        recvPos = 0;
-                        continue;
-                    }
-                    has_device_header = true;
-                    break;
-
-                case 4:
-                    //moduleNum = currentByte;
-                    CheckSumCal += currentByte;
-                    break;
-
-                case 5:
-                    if (currentByte != GS_LIDAR_ANS_SCAN) {
-                        recvPos = 0;
-                        CheckSumCal = 0;
-                        //moduleNum = 0;
-                        has_device_header = false;
-                        continue;
-                    }
-                    CheckSumCal += currentByte;
-                    break;
-
-                case 6:
-                    sample_lens |= 0x00ff&currentByte;
-                    CheckSumCal += currentByte;
-                    break;
-
-                case 7:
-                    sample_lens |= (0x00ff&currentByte)<<8;
-                    CheckSumCal += currentByte;
-                    break;
-
-                default :
-                    break;
-                }
-
-                packageBuffer[recvPos++] = currentByte;
-            }
-
-            if (has_device_header &&
-                recvPos  == PackagePaidBytes_GS) {
-                package_Sample_Num = sample_lens+1;
-                package_recvPos = recvPos;
-                break;
-            }
-            else {
-                recvPos = 0;
-                usartprintf("invalid data\n");
-                continue;
-            }
+        if(header.type != GS_LIDAR_ANS_SCAN) {
+            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad reponse\n");
+            return RESULT_FAIL;
         }
+
+        sample_lens = header.size;
+        package_recvPos = PackagePaidBytes_GS;
+        recvPos = PackagePaidBytes_GS;
+        CheckSumCal = headerBuffer[4] + headerBuffer[5] + headerBuffer[6] + headerBuffer[7];
+        package_Sample_Num = sample_lens+1;
 
         if (PackagePaidBytes_GS == recvPos)
         {
@@ -320,15 +319,18 @@ bool CYdLidar::waitPackage(node_info *node)
             }
 
             if (package_Sample_Num != recvPos) {
+                usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad package_Sample_Num\n");
                 return RESULT_FAIL;
             }
         } else {
+            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : BAD\n");
             return RESULT_FAIL;
         }
 
         if (CheckSumCal != CheckSum) {
             CheckSumResult = false;
             has_package_error = true;
+            usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
         } else {
             CheckSumResult = true;
         }
@@ -474,14 +476,11 @@ void CYdLidar::angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *ds
     *dstDist = Dist;
 }
 
+bool CYdLidar::waitScanData(node_info *nodebuffer, size_t &count) {
+    size_t recvNodeCount = 0;
+    bool ans = RESULT_FAIL;
 
-bool CYdLidar::waitScanData(node_info *nodebuffer, size_t &count){
-
-    size_t     recvNodeCount    =  0;
-    bool   ans              = RESULT_FAIL;
-
-    while (recvNodeCount < count)
-    {
+    while (recvNodeCount < count) {
         node_info node;
         ans = waitPackage(&node);
 
@@ -489,22 +488,14 @@ bool CYdLidar::waitScanData(node_info *nodebuffer, size_t &count){
             count = recvNodeCount;
             return ans;
         }
-        nodebuffer[recvNodeCount++] = node;
 
-        // if (!package_Sample_Index)
-        // {
-        //     count = recvNodeCount;
-        //     usartprintf("shit2\n");
-        //     return RESULT_OK;
-        // }
-
-        if (recvNodeCount == count) {
-            return RESULT_OK;
-        }
+        nodebuffer[recvNodeCount] = node;
+        recvNodeCount++;
     }
+    usartprintf("[YDLIDAR_ERROR] SCAN GOOD\n");
 
     count = recvNodeCount;
-    return RESULT_FAIL;
+    return RESULT_OK;
 }
 
 

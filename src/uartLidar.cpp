@@ -6,7 +6,7 @@
 void _uart1Clock_setup(void);
 void gpio1_setup(void);
 
-#define FIFO_SIZE 64
+#define FIFO_SIZE 10000
 typedef struct {
     uint8_t buffer[FIFO_SIZE];
     uint8_t head;
@@ -14,6 +14,7 @@ typedef struct {
 } fifo_t;
 
 volatile fifo_t uart_fifo;
+volatile bool fifo_full_flag;
 
 int fifo_full(volatile fifo_t *fifo) {
     uint8_t next = (fifo->head + 1) % FIFO_SIZE;
@@ -25,6 +26,9 @@ void fifo_push(volatile fifo_t *fifo, uint8_t data) {
     if (!fifo_full(fifo)) {
         fifo->buffer[fifo->head] = data;
         fifo->head = (fifo->head + 1) % FIFO_SIZE;
+    }
+    else{
+        fifo_full_flag = true;
     }
 }
 
@@ -54,6 +58,7 @@ void usart1Setup(void){
 
     uart_fifo.head = 0;
     uart_fifo.tail = 0;
+    fifo_full_flag = false;
 
     _uart1Clock_setup();
 	gpio1_setup();
@@ -69,6 +74,7 @@ void usart1Setup(void){
     //interupt
     usart_enable_rx_interrupt(USART1);
     nvic_enable_irq(NVIC_USART1_IRQ);
+    nvic_set_priority(NVIC_USART1_IRQ, 0);
 
 	/* Finally enable the USART. */
 	usart_enable(USART1);
@@ -90,8 +96,9 @@ void usartSend1Data(const uint8_t *data, int size) {
 }
 
 void usart1flushSerial(void){
-    uint8_t data;
-    while(usart1recev(&data));
+    uart_fifo.head = 0;
+    uart_fifo.tail = 0;
+    fifo_full_flag = false;
 }
 
 bool usart1recev(uint8_t* data){
@@ -100,6 +107,10 @@ bool usart1recev(uint8_t* data){
         return true;
     }
     return false;
+}
+
+bool usart1Error(){
+    return fifo_full_flag;
 }
 
 void usart1printf(const char* format, ...) {
