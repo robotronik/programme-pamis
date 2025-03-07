@@ -492,7 +492,6 @@ void CYdLidar::printLidarPoints(void) {
         }
     }
 
-    int centerX = WIDTH / 2;
     int centerY = HEIGHT / 2;
     grid[centerY][0] = 'O';
 
