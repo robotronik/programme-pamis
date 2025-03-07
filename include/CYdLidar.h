@@ -57,7 +57,7 @@ public:
     bool getDeviceAddress();
     bool stopScan();
     bool getDevicePara(gs_device_para &info);
-    bool waitResponseHeader(gs_lidar_ans_header *header);
+    bool waitResponseHeader(gs_lidar_header *header);
     bool scanData(node_info *node);
     void angTransform(uint16_t dist, int n, double *dstTheta, uint16_t *dstDist);
     bool doProcessSimple(void);

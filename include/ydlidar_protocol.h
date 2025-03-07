@@ -39,9 +39,10 @@
 
 
 struct final_Node {
-  float    angle;
-  float   distance;
-} __attribute__((packed)) ;
+  float angle;
+  float distance;
+  float intensity;
+};
 
 struct node_info {
   uint8_t    sync_flag;
@@ -52,32 +53,28 @@ struct node_info {
   uint8_t    scan_frequence;
   uint8_t    debug_info[12];
   uint8_t    index;
-} __attribute__((packed)) ;
-
+} __attribute__((packed));
 
 struct GS2PackageNode {
   uint16_t PakageSampleDistance:9;
   uint16_t PakageSampleQuality:7;
 } __attribute__((packed));
 
-struct gs2_node_package {
-  uint32_t  package_Head;
-  uint8_t   address;
-  uint8_t   package_CT;
-  uint16_t  size;
-  uint16_t  BackgroudLight;
-  GS2PackageNode  packageSample[PackageSampleMaxLngth_GS];
-  uint8_t  checkSum;
-} __attribute__((packed)) ;
-
-struct gs_lidar_ans_header {
+struct gs_lidar_header {
     uint8_t  syncByte0;
     uint8_t  syncByte1;
     uint8_t  syncByte2;
     uint8_t  syncByte3;
     uint8_t  address;
-    uint8_t  type;
+    uint8_t  cmdFlag;
     uint16_t size;
+} __attribute__((packed));
+
+struct gs2_node_package {
+  gs_lidar_header   packageHead;
+  uint16_t          BackgroudLight;
+  GS2PackageNode    packageSample[PackageSampleMaxLngth_GS];
+  uint8_t           checkSum;
 } __attribute__((packed));
 
 struct gs_device_para {
@@ -85,18 +82,8 @@ struct gs_device_para {
     uint16_t u_compensateB0;
     uint16_t u_compensateK1;
     uint16_t u_compensateB1;
-    int8_t  bias;
+    int8_t   bias;
     uint8_t  crc;
-} __attribute__((packed)) ;
-
-struct cmd_packet_gs {
-    uint8_t syncByte0;
-    uint8_t syncByte1;
-    uint8_t syncByte2;
-    uint8_t syncByte3;
-    uint8_t address;
-    uint8_t cmd_flag;
-    uint16_t size;
-} __attribute__((packed)) ;
+} __attribute__((packed));
 
 
