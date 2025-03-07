@@ -30,12 +30,12 @@ int main(void)
     laser.startScan();
     delay_ms(1000);
     while (1){
-        laser.doProcessSimple();
+        laser.scanData();
         laser.printLidarPoints();
         delay_ms(1000);
     }
 
-    laser.doProcessSimple();
+    laser.scanData();
     laser.printbuffer();
     laser.printLidarPoints();
 
