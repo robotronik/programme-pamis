@@ -78,7 +78,7 @@ bool CYdLidar::setup(){
         return RESULT_FAIL;
     }
 
-    if(getDevicePara()){
+    if(!getDevicePara()){
         return RESULT_FAIL;
     }
 
