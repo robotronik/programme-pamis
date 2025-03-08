@@ -20,24 +20,30 @@ int main(void)
 
 
 	//WAIT
-    delay_ms(3000);
+    delay_ms(1000);
     usartprintf("Start\n");
 
-    uint8_t data;
-    sequence sendMessage;
 
 
-
-
-    delay_ms(1000);
-
-    //blocking
+    // //NONblocking
     // while (1){
     //     laser.scanDataNonBlocking();
     //     if(laser.newDataAvailable()){
     //         laser.printLidarPoints();
     //     }
     // }
+
+    //NONblocking
+    while (1){
+        laser.scanDataNonBlocking();
+        if(laser.newDataAvailable()){
+            for(int i = 0; i < GS_MAX_SAMPLE; i++){
+                usartprintf("angle : %lf distance : %lf intensity : %lf\n",laser.samples[i].angle,laser.samples[i].distance,laser.samples[i].intensity);
+            }
+            usartprintf("\n\n");
+            delay_ms(1000);
+        }
+    }
 
     //blocking
     while (1){
@@ -46,21 +52,6 @@ int main(void)
         delay_ms(1000);
     }
 
-    laser.scanData();
-    laser.printbuffer();
-    laser.printLidarPoints();
-
-    while (1){
-    }
-
-    while (1){
-        sendMessage.interval([](){
-            usart1printf("ok\n");
-        },1000);
-        if(usart1recev(&data)){
-            usartprintf("%c",data);
-        }
-	}
 
 	return 0;
 }

@@ -1,7 +1,7 @@
 #include "CYdLidar.h"
 #include "math.h"
 
-final_Node CYdLidar::final_node_buf[PackageSampleMaxLngth_GS];
+final_Node CYdLidar::samples[GS_MAX_SAMPLE];
 gs2_node_package CYdLidar::package;
 
 CYdLidar::CYdLidar(/* args */)
@@ -210,19 +210,17 @@ bool CYdLidar::getDevicePara() {
 
 
 
-bool CYdLidar::scanDataNonBlocking()
-{
+bool CYdLidar::scanDataNonBlocking(){
     uint8_t *packageBuffer = (uint8_t *)&package;
     uint8_t CheckSumCal = 0;
 
     //remove excess data
     uint8_t data;
     while((getFifoSize() >= sizeof(package)*2) && m_recvPos == 0){
-        for(int i = 0; i < sizeof(package); i++){
+        for(unsigned int i = 0; i < sizeof(package); i++){
             usart1recev(&data);
         }
     }
-
 
     waitResponseHeaderNonBlocking(&(package.packageHead));
     if(m_recvPos<sizeof(package.packageHead)){
@@ -254,7 +252,6 @@ bool CYdLidar::scanDataNonBlocking()
 
     if (CheckSumCal != package.checkSum) {
         usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
-        m_recvPos = 0;
         return RESULT_FAIL;
     }
 
@@ -299,10 +296,10 @@ bool CYdLidar::scanData()
 
 
     if (CheckSumCal != package.checkSum) {
-        for(int i = 0; i < PackageSampleMaxLngth_GS; i++){
-            final_node_buf[i].intensity = 0;
-            final_node_buf[i].angle     = 0;
-            final_node_buf[i].distance  = 0;
+        for(int i = 0; i < GS_MAX_SAMPLE; i++){
+            samples[i].intensity = 0;
+            samples[i].angle     = 0;
+            samples[i].distance  = 0;
         }
         usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
         return RESULT_FAIL;
@@ -380,7 +377,7 @@ bool CYdLidar::processData(void){
     float intensity = 0.0;
     float angle = 0.0;
 
-    for (int i = 0; i < PackageSampleMaxLngth_GS; i++)
+    for (int i = 0; i < GS_MAX_SAMPLE; i++)
     {
 
         double sampleAngle = 0;
@@ -446,9 +443,9 @@ bool CYdLidar::processData(void){
             intensity = 0.0;
         }
 
-        final_node_buf[i].angle = angle;
-        final_node_buf[i].distance = range;
-        final_node_buf[i].intensity = intensity;
+        samples[i].angle = angle;
+        samples[i].distance = range;
+        samples[i].intensity = intensity;
 
     }
     return true;
@@ -470,9 +467,9 @@ bool CYdLidar::debug_checkHead(const char* functionName, const char* functionFil
 
 bool CYdLidar::printbuffer(void){
 
-    for (int i=0; i<PackageSampleMaxLngth_GS; ++i)
+    for (int i=0; i<GS_MAX_SAMPLE; ++i)
     {
-        usartprintf("%d %.02f %.02f\n", i, final_node_buf[i].angle * 180.0 / M_PI, final_node_buf[i].distance);
+        usartprintf("%d %.02f %.02f\n", i, samples[i].angle * 180.0 / M_PI, samples[i].distance);
     }
     usartprintf("\n");
 
@@ -492,9 +489,9 @@ void CYdLidar::printLidarPoints(void) {
     int centerY = HEIGHT / 2;
     grid[centerY][0] = 'O';
 
-    for (int i = 0; i < PackageSampleMaxLngth_GS; ++i) {
-        double angle = final_node_buf[i].angle;
-        double range = final_node_buf[i].distance;
+    for (int i = 0; i < GS_MAX_SAMPLE; ++i) {
+        double angle = samples[i].angle;
+        double range = samples[i].distance;
 
         if(range != 0){
             if (range > MAX_RANGE) range = MAX_RANGE;

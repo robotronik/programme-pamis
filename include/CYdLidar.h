@@ -28,7 +28,6 @@ private:
     uint16_t  u_compensateB1;
     double  bias;
 
-    static final_Node final_node_buf[PackageSampleMaxLngth_GS];
     static gs2_node_package package;
 
     bool    m_intensities;
@@ -42,6 +41,11 @@ private:
     //attribut for non blocking methode
     uint16_t m_recvPos = 0;
     bool    m_newDataAvailable = false;
+
+public:
+    static final_Node samples[GS_MAX_SAMPLE];
+
+
 public:
     CYdLidar(/* args */);
 

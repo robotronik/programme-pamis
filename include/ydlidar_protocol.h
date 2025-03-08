@@ -10,7 +10,7 @@
 #define Angle_Px   1.22
 #define Angle_Py   5.315
 #define Angle_PAngle   22.5
-#define PackageSampleMaxLngth_GS 160
+#define GS_MAX_SAMPLE 160
 
 #define RESULT_FAIL false
 #define RESULT_OK   true
@@ -56,7 +56,7 @@ struct gs_lidar_header {
 struct gs2_node_package {
   gs_lidar_header   packageHead;
   uint16_t          BackgroudLight;
-  GS2PackageNode    packageSample[PackageSampleMaxLngth_GS];
+  GS2PackageNode    packageSample[GS_MAX_SAMPLE];
   uint8_t           checkSum;
 } __attribute__((packed));
 
