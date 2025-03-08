@@ -43,19 +43,63 @@ void CYdLidar::sendCommand(uint8_t cmd,const void *payload,int payloadsize)
     usartSend1Data(&checksum, 1);
 }
 
-bool CYdLidar::startScan(){
-    gs_lidar_header response_header;
-    gs_device_para gs2_info;
+bool CYdLidar::waitResponseHeader(gs_lidar_header *header) {
+    uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(header);
+    unsigned int recvPos = 0;
+    uint8_t currentByte;
 
-    stopScan();
-    getDeviceAddress();
-    getDevicePara(gs2_info);
-    sendCommand(GS_LIDAR_CMD_SCAN);
-    waitResponseHeader(&response_header);
-    if (response_header.cmdFlag != GS_LIDAR_CMD_SCAN) {
-        usartprintf("[YDLIDAR_ERROR] START SCAN FAIL : bad reponse\n");
+    while (recvPos < sizeof(gs_lidar_header)) {
+
+        while (!usart1recev(&currentByte));
+
+        if (recvPos < 4) {
+            if (currentByte == GS_LIDAR_CMD_SYNC_BYTE) {
+                headerBuffer[recvPos] = currentByte;
+                recvPos++;
+            } else {
+                //usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
+                recvPos = 0;
+            }
+        } else {
+            headerBuffer[recvPos] = currentByte;
+            recvPos++;
+        }
+    }
+    return RESULT_OK;
+}
+
+bool CYdLidar::setup(){
+
+    if(!stopScan()){
         return RESULT_FAIL;
     }
+
+    if(!getDeviceAddress()){
+        return RESULT_FAIL;
+    }
+
+    if(getDevicePara()){
+        return RESULT_FAIL;
+    }
+
+    if(!startScan()){
+        return RESULT_FAIL;
+    }
+
+    return RESULT_OK;
+}
+
+bool CYdLidar::startScan(){
+    gs_lidar_header response_header;
+
+    sendCommand(GS_LIDAR_CMD_SCAN);
+    waitResponseHeader(&response_header);
+    if(!checkHead(&response_header,GS_LIDAR_CMD_SCAN)){
+        return RESULT_FAIL;
+    }
+
+    usartprintf("[YDLIDAR_INFO] start scan %d\n");
+
     return RESULT_OK;
 }
 
@@ -64,13 +108,13 @@ bool CYdLidar::getDeviceAddress(){
 
     sendCommand(GS_LIDAR_CMD_GET_ADDRESS);
     waitResponseHeader(&response_header);
-
-
-    if (response_header.cmdFlag != GS_LIDAR_CMD_GET_ADDRESS) {
-        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_ADDRESS FAIL : bad reponse\n");
+    if(!checkHead(&response_header,GS_LIDAR_CMD_GET_ADDRESS)){
         return RESULT_FAIL;
     }
-    usartprintf("[YDLIDAR_INFO] Lidar module count %d\n", (response_header.address << 1) + 1);
+
+    m_address = (response_header.address << 1) + 1;
+
+    usartprintf("[YDLIDAR_INFO] Lidar module count %d\n", m_address);
 
     return RESULT_OK;
 }
@@ -81,18 +125,18 @@ bool CYdLidar::stopScan(){
     usart1flushSerial();
     sendCommand(GS_LIDAR_CMD_STOP);
     waitResponseHeader(&response_header);
-
-    if(response_header.cmdFlag != GS_LIDAR_CMD_STOP) {
-        usartprintf("[YDLIDAR_ERROR] STOP_SCAN FAIL : bad reponse\n");
+    if(!checkHead(&response_header,GS_LIDAR_CMD_STOP)){
         return RESULT_FAIL;
     }
+
     usartprintf("[YDLIDAR_INFO] stop scan\n");
     return RESULT_OK;
 }
 
 
-bool CYdLidar::getDevicePara(gs_device_para &info) {
+bool CYdLidar::getDevicePara() {
     uint8_t crcSum;
+    gs_device_para info;
     uint8_t *pInfo = reinterpret_cast<uint8_t *>(&info);
     gs_lidar_header response_header;
     unsigned int recvSize = 0;
@@ -100,13 +144,7 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
     usart1flushSerial();
     sendCommand(GS_LIDAR_CMD_GET_PARAMETER);
     waitResponseHeader(&response_header);
-
-    if (response_header.cmdFlag != GS_LIDAR_CMD_GET_PARAMETER) {
-        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_PARA FAIL : bad reponse\n");
-        return RESULT_FAIL;
-    }
-    if (response_header.size < (sizeof(gs_device_para) - 1)) {
-        usartprintf("[YDLIDAR_ERROR] GET_DEVICE_PARA FAIL : reponse header to small\n");
+    if(!checkHead(&response_header,GS_LIDAR_CMD_GET_PARAMETER,sizeof(gs_device_para)-1)){
         return RESULT_FAIL;
     }
 
@@ -139,68 +177,27 @@ bool CYdLidar::getDevicePara(gs_device_para &info) {
     d_compensateB0 = info.u_compensateB0 / 10000.00;
     d_compensateB1 = info.u_compensateB1 / 10000.00;
     bias = double(info.bias) * 0.1;
-    usartprintf("> %d\n",u_compensateK0);
-    usartprintf("> %d\n",u_compensateK1);
-    usartprintf("> %d\n",u_compensateB0);
-    usartprintf("> %d\n",u_compensateB1);
-    usartprintf("> %lf\n",d_compensateK0);
-    usartprintf("> %lf\n",d_compensateK1);
-    usartprintf("> %lf\n",d_compensateB0);
-    usartprintf("> %lf\n",d_compensateB1);
-    usartprintf("> %lf\n",bias);
 
     return RESULT_OK;
 }
 
-
-bool CYdLidar::waitResponseHeader(gs_lidar_header *header) {
-    uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(header);
-    unsigned int recvPos = 0;
-    uint8_t currentByte;
-
-    while (recvPos < sizeof(gs_lidar_header)) {
-
-        while (!usart1recev(&currentByte));
-
-        if (recvPos < 4) {
-            if (currentByte == GS_LIDAR_CMD_SYNC_BYTE) {
-                headerBuffer[recvPos] = currentByte;
-                recvPos++;
-            } else {
-                //usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
-                recvPos = 0;
-            }
-        } else {
-            headerBuffer[recvPos] = currentByte;
-            recvPos++;
-        }
-    }
-    return RESULT_OK;
-}
 
 
 bool CYdLidar::scanData()
 {
     uint8_t *packageBuffer = (uint8_t *)&package;
-    uint16_t sample_lens = 0;
-    uint16_t package_Sample_Num = 0;
     uint8_t CheckSumCal = 0;
 
 
-    usartprintf("START\n");
     usart1flushSerial();
     waitResponseHeader(&(package.packageHead));
-
-    if(package.packageHead.cmdFlag != GS_LIDAR_CMD_SCAN) {
-        usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad reponse\n");
+    if(!checkHead(&package.packageHead,GS_LIDAR_CMD_SCAN,(sizeof(package.packageSample) + sizeof(package.BackgroudLight)))){
         return RESULT_FAIL;
     }
 
-    sample_lens = package.packageHead.size;
-    package_Sample_Num = sample_lens+1;
 
 
-    int remainSize = package_Sample_Num + sizeof(package.packageHead);
+    int remainSize = package.packageHead.size + 1 + sizeof(package.packageHead);
     int recvSize = sizeof(package.packageHead);
     while (recvSize < remainSize)
     {
@@ -370,6 +367,20 @@ bool CYdLidar::processData(void){
     return true;
 }
 
+bool CYdLidar::debug_checkHead(const char* functionName, const char* functionFile, const int functionLine ,gs_lidar_header* head,uint8_t flag,uint16_t size){
+    if(head->cmdFlag != flag) {
+        usartprintf("[YDLIDAR_ERROR] %s: %s %d FAIL : bad reponse\n",functionName,functionFile,functionLine);
+        return RESULT_FAIL;
+    }
+
+    if (head->size != size) {
+        usartprintf("[YDLIDAR_ERROR] %s: %s %d FAIL : reponse header bad lenght\n",functionName,functionFile,functionLine);
+        return RESULT_FAIL;
+    }
+
+    return RESULT_OK;
+}
+
 bool CYdLidar::printbuffer(void){
 
     for (int i=0; i<PackageSampleMaxLngth_GS; ++i)
@@ -416,6 +427,18 @@ void CYdLidar::printLidarPoints(void) {
         }
         usartprintf("\n");
     }
+}
+
+void CYdLidar::printPara(void){
+    usartprintf("> %d\n",u_compensateK0);
+    usartprintf("> %d\n",u_compensateK1);
+    usartprintf("> %d\n",u_compensateB0);
+    usartprintf("> %d\n",u_compensateB1);
+    usartprintf("> %lf\n",d_compensateK0);
+    usartprintf("> %lf\n",d_compensateK1);
+    usartprintf("> %lf\n",d_compensateB0);
+    usartprintf("> %lf\n",d_compensateB1);
+    usartprintf("> %lf\n",bias);
 }
 
 

@@ -9,11 +9,13 @@
 
 int main(void)
 {
+    CYdLidar laser;
 
 	//SETUP
 	clock_setup();
 	usartSetup();
-    usart1Setup();
+    usart1Setup();//set up befor lidar
+    laser.setup();
 
 
 
@@ -26,8 +28,7 @@ int main(void)
 
 
 
-    CYdLidar laser;
-    laser.startScan();
+
     delay_ms(1000);
     while (1){
         laser.scanData();
