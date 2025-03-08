@@ -6,7 +6,7 @@
 void _uart1Clock_setup(void);
 void gpio1_setup(void);
 
-#define FIFO_SIZE (338 *2 + 1)
+#define FIFO_SIZE (338 *10 + 1)
 typedef struct {
     uint8_t buffer[FIFO_SIZE];
     uint32_t head;
@@ -17,7 +17,7 @@ volatile fifo_t uart_fifo;
 volatile bool fifo_full_flag;
 
 int fifo_full(volatile fifo_t *fifo) {
-    uint32_t next = (fifo->head + 1) % FIFO_SIZE;
+    uint32_t next = (fifo->head + 2) % FIFO_SIZE;
     return next == fifo->tail;
 }
 
@@ -51,6 +51,15 @@ void usart1_isr(void) {
         fifo_push(&uart_fifo, data);
     }
 }
+
+uint32_t getFifoSize() {
+    if (uart_fifo.head >= uart_fifo.tail) {
+        return uart_fifo.head - uart_fifo.tail;
+    } else {
+        return (FIFO_SIZE - uart_fifo.tail) + uart_fifo.head;
+    }
+}
+
 
 
 

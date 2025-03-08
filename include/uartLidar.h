@@ -17,6 +17,8 @@ void usart1flushSerial(void);
 
 bool usart1Error();
 
+uint32_t getFifoSize();
+
 //Send information on uart2
 //1000 char max
 void usart1printf(const char* format,...);

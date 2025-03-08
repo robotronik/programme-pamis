@@ -30,6 +30,16 @@ int main(void)
 
 
     delay_ms(1000);
+
+    //blocking
+    // while (1){
+    //     laser.scanDataNonBlocking();
+    //     if(laser.newDataAvailable()){
+    //         laser.printLidarPoints();
+    //     }
+    // }
+
+    //blocking
     while (1){
         laser.scanData();
         laser.printLidarPoints();

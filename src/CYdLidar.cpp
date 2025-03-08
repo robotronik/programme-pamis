@@ -57,13 +57,40 @@ bool CYdLidar::waitResponseHeader(gs_lidar_header *header) {
                 headerBuffer[recvPos] = currentByte;
                 recvPos++;
             } else {
-                //usartprintf("waitResponseHeader : invalid data : %02x\n",currentByte);
                 recvPos = 0;
             }
         } else {
             headerBuffer[recvPos] = currentByte;
             recvPos++;
         }
+    }
+    return RESULT_OK;
+}
+
+
+bool CYdLidar::waitResponseHeaderNonBlocking(gs_lidar_header *header) {
+    uint8_t *headerBuffer = reinterpret_cast<uint8_t *>(header);
+    uint8_t currentByte;
+
+    while (m_recvPos < sizeof(gs_lidar_header)) {
+
+        if(usart1recev(&currentByte)){
+            if (m_recvPos < 4) {
+                if (currentByte == GS_LIDAR_CMD_SYNC_BYTE) {
+                    headerBuffer[m_recvPos] = currentByte;
+                    m_recvPos++;
+                } else {
+                    m_recvPos = 0;
+                }
+            } else {
+                headerBuffer[m_recvPos] = currentByte;
+                m_recvPos++;
+            }
+        }
+        else{
+            return RESULT_OK;
+        }
+
     }
     return RESULT_OK;
 }
@@ -181,6 +208,68 @@ bool CYdLidar::getDevicePara() {
     return RESULT_OK;
 }
 
+
+
+bool CYdLidar::scanDataNonBlocking()
+{
+    uint8_t *packageBuffer = (uint8_t *)&package;
+    uint8_t CheckSumCal = 0;
+
+    //remove excess data
+    uint8_t data;
+    while((getFifoSize() >= sizeof(package)*2) && m_recvPos == 0){
+        for(int i = 0; i < sizeof(package); i++){
+            usart1recev(&data);
+        }
+    }
+
+
+    waitResponseHeaderNonBlocking(&(package.packageHead));
+    if(m_recvPos<sizeof(package.packageHead)){
+        return RESULT_OK; //need to wait more data
+    }
+
+    if(!checkHead(&package.packageHead,GS_LIDAR_CMD_SCAN,(sizeof(package.packageSample) + sizeof(package.BackgroudLight)))){
+        m_recvPos = 0;
+        return RESULT_FAIL;
+    }
+
+    int remainSize = package.packageHead.size + 1 + sizeof(package.packageHead);
+    while (m_recvPos < remainSize)
+    {
+        if(usart1recev(&(packageBuffer[m_recvPos]))){
+            m_recvPos ++;
+        }
+        else{
+            return RESULT_OK; //need to wait more data
+        }
+    }
+
+    for (int pos = 4; pos < m_recvPos-1; pos++) {
+        CheckSumCal += packageBuffer[pos];
+    }
+
+    m_newDataAvailable = true;
+    m_recvPos = 0;
+
+    if (CheckSumCal != package.checkSum) {
+        usartprintf("[YDLIDAR_ERROR] SCAN FAIL : bad checksumm\n");
+        m_recvPos = 0;
+        return RESULT_FAIL;
+    }
+
+    processData();
+
+    return RESULT_OK;
+}
+
+bool CYdLidar::newDataAvailable(){
+    if(m_newDataAvailable){
+        m_newDataAvailable = false;
+        return true;
+    }
+    return false;
+}
 
 
 bool CYdLidar::scanData()

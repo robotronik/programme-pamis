@@ -38,6 +38,10 @@ private:
     float   m_MaxRange = 1000;
     float   m_MinRange = 30;
     uint8_t m_address;
+
+    //attribut for non blocking methode
+    uint16_t m_recvPos = 0;
+    bool    m_newDataAvailable = false;
 public:
     CYdLidar(/* args */);
 
@@ -45,6 +49,7 @@ public:
 private:
     void sendCommand(uint8_t cmd, const void *payload = NULL, int payloadsize = 0);
     bool waitResponseHeader(gs_lidar_header *header);
+    bool waitResponseHeaderNonBlocking(gs_lidar_header *header);
 
 //Control
 public:
@@ -54,6 +59,8 @@ public:
     bool stopScan();
     bool getDevicePara();
     bool scanData();
+    bool scanDataNonBlocking();
+    bool newDataAvailable();
 
 //Process
 private:
