@@ -274,7 +274,7 @@ bool CYdLidar::scanData()
     uint8_t *packageBuffer = (uint8_t *)&package;
     uint8_t CheckSumCal = 0;
 
-
+    usart1flushSerial();
     waitResponseHeader(&(package.packageHead));
     if(!checkHead(&package.packageHead,GS_LIDAR_CMD_SCAN,(sizeof(package.packageSample) + sizeof(package.BackgroudLight)))){
         return RESULT_FAIL;
@@ -288,7 +288,6 @@ bool CYdLidar::scanData()
             recvSize ++;
         }
     }
-    usart1flushSerial();
 
     for (int pos = 4; pos < recvSize-1; pos++) {
         CheckSumCal += packageBuffer[pos];
@@ -441,6 +440,7 @@ bool CYdLidar::processData(void){
         if (!isRangeValid(range)) {
             range = 0.0;
             intensity = 0.0;
+            angle = 0.0;
         }
 
         samples[i].angle = angle;

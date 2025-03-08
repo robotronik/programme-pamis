@@ -14,7 +14,7 @@ int main(void)
 	//SETUP
 	clock_setup();
 	usartSetup();
-    usart1Setup();//set up befor lidar
+    usart1Setup();//setup before the lidar
     laser.setup();
 
 
@@ -25,20 +25,20 @@ int main(void)
 
 
 
-    // //NONblocking
-    // while (1){
-    //     laser.scanDataNonBlocking();
-    //     if(laser.newDataAvailable()){
-    //         laser.printLidarPoints();
-    //     }
-    // }
-
     //NONblocking
     while (1){
         laser.scanDataNonBlocking();
         if(laser.newDataAvailable()){
+            laser.printLidarPoints();
+        }
+    }
+
+    //blocking
+    while (1){
+        laser.scanDataNonBlocking();
+        if(laser.newDataAvailable()){
             for(int i = 0; i < GS_MAX_SAMPLE; i++){
-                usartprintf("angle : %lf distance : %lf intensity : %lf\n",laser.samples[i].angle,laser.samples[i].distance,laser.samples[i].intensity);
+                usartprintf("angle : %lf distance : %lf intensity : %lf\n", laser.samples[i].angle  * 180.0 / M_PI, laser.samples[i].distance, laser.samples[i].intensity);
             }
             usartprintf("\n\n");
             delay_ms(1000);

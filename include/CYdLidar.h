@@ -30,8 +30,8 @@ private:
 
     static gs2_node_package package;
 
-    bool    m_intensities;
-    float   m_AngleOffset;
+    bool    m_intensities = true;
+    float   m_AngleOffset = 0;
     bool    m_Reversion = false;
     bool    m_Inverted = false;
     float   m_MaxRange = 1000;
