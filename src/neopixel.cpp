@@ -84,7 +84,7 @@ HAL_DMA_Abort(&hdma_tim2_ch1);
     datasentflag = 1;
 }
 
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+extern "C" void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
 
     if (htim->Instance == TIM2)
@@ -94,7 +94,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
-void DMA1_Channel1_IRQHandler(void)
+extern "C" void DMA1_Channel1_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(&hdma_tim2_ch1);
 }

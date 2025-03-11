@@ -1,6 +1,7 @@
 #include "uart.h"
 #include <stdarg.h>
 #include <string.h>
+#include <cstdio>
 
 #define UART_PIN GPIO_PIN_3
 #define UART_PORT GPIOB
@@ -57,7 +58,7 @@ void uartSetup(void)
 
 void uartTransmit(char *msg, size_t size)
 {
-    HAL_UART_Transmit(&huart2, msg, size, UART_TIMEOUT);
+    HAL_UART_Transmit(&huart2, (uint8_t*)msg, size, (uint32_t)UART_TIMEOUT);
 }
 
 void uartprintf(const char *format, ...)

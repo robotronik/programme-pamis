@@ -27,6 +27,6 @@ void neopixelSetup(void);
 
 void neopixelSetLed(uint16_t numLed, color_t color, uint8_t brightness);
 void neopixelSetMoreLeds(uint16_t firstled, color_t color[], size_t size);
-void neopixelClear(void); 
+void neopixelClear(void);
 
 #endif

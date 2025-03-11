@@ -21,6 +21,8 @@
 /* Private includes ----------------------------------------------------------*/
 #include "servo.h"
 #include "uart.h"
+#include "uartLidar.h"
+#include "CYdLidar.h"
 #include "level_battery.h"
 #include "neopixel.h"
 #include "system.h"
@@ -32,13 +34,13 @@ I2C_HandleTypeDef hi2c2;
 
 // TIM_HandleTypeDef htim3;
 
-UART_HandleTypeDef huart1;
 // UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 static void MX_GPIO_Init(void);
 static void MX_I2C2_Init(void);
-static void MX_USART1_UART_Init(void);
 static void MX_ADC2_Init(void);
+
+CYdLidar laser;
 
 /**
  * @brief  The application entry point.
@@ -53,12 +55,12 @@ int main(void)
   SystemClock_Config();
 
   MX_GPIO_Init();
-  HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, 1);
+  HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, (GPIO_PinState)1);
   // MX_I2C2_Init();
-  // MX_USART1_UART_Init();
   // MX_ADC2_Init();
   //  MX_USART2_UART_Init();
   uartSetup();
+  uartLidarSetup();
   battSetup();
   servoSetup();
   neopixelSetup();
@@ -71,12 +73,23 @@ int main(void)
   servoEnable(SERVO1);
   servoEnable(SERVO2);
 
+  //laser.setup();
+
   uartprintf("Un petit uart de debug ! sur la pin PB3\n");
 
   // HAL_ADC_Start(&hadc2);
   color_t coleur[3] = {{255, 0, 127}, {0, 55, 0}, {127, 0, 127}};
   // neopixelSetLed(0, coleur, 255);
   uint32_t level_battery = 1240;
+
+    // //NONblocking
+    // while (1){
+    //     laser.scanDataNonBlocking();
+    //     if(laser.newDataAvailable()){
+    //         laser.printLidarPoints();
+    //     }
+    // }
+
 
   // LOOP
   while (1)
@@ -118,10 +131,10 @@ int main(void)
     {
       uartprintf("Petit tour de soi-même pour montrer sa robe UwU\n");
 
-      HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, 0);
+      HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, (GPIO_PinState)0);
 
-      HAL_GPIO_WritePin(DIR1_GPIO_Port, DIR1_Pin, 1);
-      HAL_GPIO_WritePin(DIR2_GPIO_Port, DIR2_Pin, 0);
+      HAL_GPIO_WritePin(DIR1_GPIO_Port, DIR1_Pin, (GPIO_PinState)1);
+      HAL_GPIO_WritePin(DIR2_GPIO_Port, DIR2_Pin, (GPIO_PinState)0);
 
       for (int i = 0; i < 1200; i++)
       {
@@ -130,7 +143,7 @@ int main(void)
         HAL_GPIO_TogglePin(STEP2_GPIO_Port, STEP2_Pin);
         HAL_Delay(5);
       }
-      HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, 1);
+      HAL_GPIO_WritePin(EN_STEPPER_GPIO_Port, EN_STEPPER_Pin, (GPIO_PinState)1);
 
       for (int i = 0; i < 3; i++)
       {
@@ -251,53 +264,6 @@ static void MX_I2C2_Init(void)
   /* USER CODE BEGIN I2C2_Init 2 */
 
   /* USER CODE END I2C2_Init 2 */
-}
-
-/**
- * @brief USART1 Initialization Function
- * @param None
- * @retval None
- */
-static void MX_USART1_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 921600;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
 }
 
 /**

@@ -67,7 +67,7 @@ void SystemClock_Config(void)
   HAL_PWREx_DisableUCPDDeadBattery();
 }
 
-void SysTick_Handler(void)
+extern "C" void SysTick_Handler(void)
 {
   HAL_IncTick();
 }

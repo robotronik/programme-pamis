@@ -1,5 +1,5 @@
-#ifndef UART_H
-#define UART_H
+#ifndef UARTLIDAR_H
+#define UARTLIDAR_H
 
 /*****************
  *  Rixae Dufour - CDFR 2025 PAMIS
@@ -10,14 +10,21 @@
  *
  *******************/
 #include "stm32g4xx_hal.h"
+#include <stdbool.h>
 #include "system.h"
 #define UART_TIMEOUT 100
-#define UART_MAX_MSG 256
 
-void uartSetup();
-void uartTransmit(char *msg, size_t size);
+void uartLidarSetup(void);
 
-// /!\ ne pas dépasser un message de la taille UART_MAX_MSG (256 by default)
-void uartprintf(const char *format, ...);
+bool usart1recev(uint8_t* data);
+
+void usartSend1Data(const uint8_t *data, int size);
+
+void usart1flushSerial(void);
+
+bool usart1Error();
+
+uint32_t getFifoSize();
+
 
 #endif
