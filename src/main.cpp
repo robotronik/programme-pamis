@@ -73,7 +73,8 @@ int main(void)
   servoEnable(SERVO1);
   servoEnable(SERVO2);
 
-  //laser.setup();
+  HAL_Delay(1000);
+  laser.setup();
 
   uartprintf("Un petit uart de debug ! sur la pin PB3\n");
 

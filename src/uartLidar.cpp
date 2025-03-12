@@ -9,7 +9,7 @@
 
 UART_HandleTypeDef huart1;
 uint8_t UART1_rxBuffer[12] = {0};
-
+uint8_t dataRec;
 
 
 
@@ -141,12 +141,24 @@ void uartLidarSetup(void)
     {
         Error_Handler();
     }
+
+    HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(USART1_IRQn);
+    HAL_UART_Receive_IT(&huart1, &dataRec, 1);
+
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+extern "C" void USART1_IRQHandler(void)
 {
-    uint8_t data;
-    HAL_UART_Receive_IT(&huart1, &data, 1);
-    fifo_push(&uart_fifo, data);
+    HAL_UART_IRQHandler(&huart1);
+}
+
+extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART1) // pour s'assurer que c’est bien le bon UART
+    {
+        fifo_push(&uart_fifo, dataRec);
+        HAL_UART_Receive_IT(&huart1, &dataRec, 1); // relancer la réception
+    }
 }
 

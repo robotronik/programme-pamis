@@ -171,6 +171,9 @@ bool CYdLidar::getDevicePara() {
     usart1flushSerial();
     sendCommand(GS_LIDAR_CMD_GET_PARAMETER);
     waitResponseHeader(&response_header);
+    for(int i =0; i < 8; i++)
+        uartprintf(">%d\n",reinterpret_cast<uint8_t *>(&response_header)[i]);
+    uartprintf(">%d to %d\n",response_header.size,sizeof(gs_device_para)-1);
     if(!checkHead(&response_header,GS_LIDAR_CMD_GET_PARAMETER,sizeof(gs_device_para)-1)){
         return RESULT_FAIL;
     }
@@ -204,6 +207,8 @@ bool CYdLidar::getDevicePara() {
     d_compensateB0 = info.u_compensateB0 / 10000.00;
     d_compensateB1 = info.u_compensateB1 / 10000.00;
     bias = double(info.bias) * 0.1;
+
+    printPara();
 
     return RESULT_OK;
 }
