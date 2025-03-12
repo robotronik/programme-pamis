@@ -1,6 +1,7 @@
 #include "uartLidar.h"
 #include <stdarg.h>
 #include <string.h>
+#include "uart.h"
 
 #define UART_TX_PIN GPIO_PIN_6
 #define UART_TX_PORT GPIOB
@@ -8,76 +9,42 @@
 #define UART_RX_PORT GPIOB
 
 UART_HandleTypeDef huart1;
-uint8_t UART1_rxBuffer[12] = {0};
+DMA_HandleTypeDef hdma_usart1_rx;
+
+
+#define DMA_BUF_SIZE (338 *10 + 1)
+uint8_t dma_rx_buf[DMA_BUF_SIZE];
+volatile uint16_t dma_rx_tail = 0; // index de lecture logiciel
 
 
 
+uint32_t getFifoSize(void)
+{
+    uint16_t dma_head = DMA_BUF_SIZE - __HAL_DMA_GET_COUNTER(huart1.hdmarx);
 
-
-#define FIFO_SIZE (338 *10 + 1)
-typedef struct {
-    uint8_t buffer[FIFO_SIZE];
-    uint32_t head;
-    uint32_t tail;
-} fifo_t;
-
-volatile fifo_t uart_fifo;
-volatile bool fifo_full_flag;
-
-int fifo_full(volatile fifo_t *fifo) {
-    uint32_t next = (fifo->head + 2) % FIFO_SIZE;
-    return next == fifo->tail;
-}
-
-
-void fifo_push(volatile fifo_t *fifo, uint8_t data) {
-    if (!fifo_full(fifo)) {
-        fifo->buffer[fifo->head] = data;
-        fifo->head = (fifo->head + 1) % FIFO_SIZE;
-    }
-    else{
-        fifo_full_flag = true;
-    }
-}
-
-int fifo_empty(volatile fifo_t *fifo) {
-    return fifo->head == fifo->tail;
-}
-
-uint8_t fifo_pop(volatile fifo_t *fifo) {
-    if (fifo->head == fifo->tail) {
-        return 0;
-    }
-    uint8_t data = fifo->buffer[fifo->tail];
-    fifo->tail = (fifo->tail + 1) % FIFO_SIZE;
-    return data;
-}
-
-uint32_t getFifoSize() {
-    if (uart_fifo.head >= uart_fifo.tail) {
-        return uart_fifo.head - uart_fifo.tail;
+    if (dma_head >= dma_rx_tail) {
+        return dma_head - dma_rx_tail;
     } else {
-        return (FIFO_SIZE - uart_fifo.tail) + uart_fifo.head;
+        return (DMA_BUF_SIZE - dma_rx_tail) + dma_head;
     }
 }
 
-
-void usart1flushSerial(void){
-    uart_fifo.head = 0;
-    uart_fifo.tail = 0;
-    fifo_full_flag = false;
+void usart1flushSerial(void)
+{
+    dma_rx_tail = DMA_BUF_SIZE - __HAL_DMA_GET_COUNTER(huart1.hdmarx);
 }
 
-bool usart1recev(uint8_t* data){
-    if(!fifo_empty(&uart_fifo)){
-        *data = fifo_pop(&uart_fifo);
-        return true;
+bool usart1recev(uint8_t* data)
+{
+    uint16_t dma_head = DMA_BUF_SIZE - __HAL_DMA_GET_COUNTER(huart1.hdmarx);
+
+    if (dma_head == dma_rx_tail){
+        return false; // buffer vide
     }
-    return false;
-}
 
-bool usart1Error(){
-    return fifo_full_flag;
+    *data = dma_rx_buf[dma_rx_tail];
+    dma_rx_tail = (dma_rx_tail + 1) % DMA_BUF_SIZE;
+    return true;
 }
 
 void usartSend1Data(const uint8_t *data, int size) {
@@ -85,28 +52,22 @@ void usartSend1Data(const uint8_t *data, int size) {
 }
 
 
-
-void uartLidarSetup(void)
+void uartLidarSetup()
 {
+    __HAL_RCC_USART1_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_DMA2_CLK_ENABLE();
+    __HAL_RCC_DMAMUX1_CLK_ENABLE();
 
-    uart_fifo.head = 0;
-    uart_fifo.tail = 0;
-    fifo_full_flag = false;
-
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    // Configuration de la clock USART
     RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-
-
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1;
     PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-    {
-      Error_Handler();
-    }
+        Error_Handler();
 
-    __HAL_RCC_USART1_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-
+    // GPIO config (TX/RX)
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = GPIO_PIN_6 | GPIO_PIN_7;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -114,6 +75,8 @@ void uartLidarSetup(void)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+
+    // Initialisation UART
     huart1.Instance = USART1;
     huart1.Init.BaudRate = 921600;
     huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -125,7 +88,7 @@ void uartLidarSetup(void)
     huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
     huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
     huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-    if (HAL_HalfDuplex_Init(&huart1) != HAL_OK)
+    if (HAL_UART_Init(&huart1) != HAL_OK)
     {
         Error_Handler();
     }
@@ -141,12 +104,30 @@ void uartLidarSetup(void)
     {
         Error_Handler();
     }
+
+     // DMA config
+    hdma_usart1_rx.Instance = DMA2_Channel1;
+    hdma_usart1_rx.Init.Request = DMA_REQUEST_USART1_RX;
+    hdma_usart1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_usart1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart1_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.Mode = DMA_CIRCULAR;
+    hdma_usart1_rx.Init.Priority = DMA_PRIORITY_LOW;
+
+    if (HAL_DMA_Init(&hdma_usart1_rx) != HAL_OK)
+        Error_Handler();
+
+    __HAL_LINKDMA(&huart1, hdmarx, hdma_usart1_rx);
+
+    // Lancer la réception DMA circulaire
+    if (HAL_UART_Receive_DMA(&huart1, dma_rx_buf, DMA_BUF_SIZE) != HAL_OK){
+        Error_Handler();
+    }
+
+    dma_rx_tail = 0;
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    uint8_t data;
-    HAL_UART_Receive_IT(&huart1, &data, 1);
-    fifo_push(&uart_fifo, data);
-}
+
 

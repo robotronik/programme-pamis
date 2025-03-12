@@ -22,8 +22,6 @@ void usartSend1Data(const uint8_t *data, int size);
 
 void usart1flushSerial(void);
 
-bool usart1Error();
-
 uint32_t getFifoSize();
 
 

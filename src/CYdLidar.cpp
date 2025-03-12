@@ -96,21 +96,38 @@ bool CYdLidar::waitResponseHeaderNonBlocking(gs_lidar_header *header) {
 }
 
 bool CYdLidar::setup(){
+    int retry;
 
-    if(!stopScan()){
-        return RESULT_FAIL;
+    retry = 0;
+    while(!stopScan()){
+        retry++;
+        if(retry == 10){
+            return RESULT_FAIL;
+        }
     }
 
-    if(!getDeviceAddress()){
-        return RESULT_FAIL;
+    retry = 0;
+    while(!getDeviceAddress()){
+        retry++;
+        if(retry == 10){
+            return RESULT_FAIL;
+        }
     }
 
-    if(!getDevicePara()){
-        return RESULT_FAIL;
+    retry = 0;
+    while(!getDevicePara()){
+        retry++;
+        if(retry == 10){
+            return RESULT_FAIL;
+        }
     }
 
-    if(!startScan()){
-        return RESULT_FAIL;
+    retry = 0;
+    while(!startScan()){
+        retry++;
+        if(retry == 10){
+            return RESULT_FAIL;
+        }
     }
 
     return RESULT_OK;
@@ -204,6 +221,8 @@ bool CYdLidar::getDevicePara() {
     d_compensateB0 = info.u_compensateB0 / 10000.00;
     d_compensateB1 = info.u_compensateB1 / 10000.00;
     bias = double(info.bias) * 0.1;
+
+    printPara();
 
     return RESULT_OK;
 }
@@ -480,8 +499,8 @@ bool CYdLidar::printbuffer(void){
 void CYdLidar::printLidarPoints(void) {
     char grid[HEIGHT][WIDTH];
 
-    for (int y = 0; y < HEIGHT; ++y) {
-        for (int x = 0; x < WIDTH; ++x) {
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
             grid[y][x] = ' ';
         }
     }
@@ -489,7 +508,7 @@ void CYdLidar::printLidarPoints(void) {
     int centerY = HEIGHT / 2;
     grid[centerY][0] = 'O';
 
-    for (int i = 0; i < GS_MAX_SAMPLE; ++i) {
+    for (int i = 0; i < GS_MAX_SAMPLE; i++) {
         double angle = samples[i].angle;
         double range = samples[i].distance;
 
@@ -505,8 +524,14 @@ void CYdLidar::printLidarPoints(void) {
         }
     }
 
-    for (int y = 0; y < HEIGHT; ++y) {
-        for (int x = 0; x < WIDTH; ++x) {
+    int xmax;
+    for (int y = 0; y < HEIGHT; y++) {
+        for (xmax = WIDTH - 1; xmax >= 0; xmax--) {
+            if(grid[y][xmax] != ' '){
+                break;
+            }
+        }
+        for (int x = 0; x < xmax+1; x++) {
             uartprintf("%c", grid[y][x]);
         }
         uartprintf("\n");

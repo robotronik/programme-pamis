@@ -73,7 +73,8 @@ int main(void)
   servoEnable(SERVO1);
   servoEnable(SERVO2);
 
-  //laser.setup();
+  HAL_Delay(1000);
+  laser.setup();
 
   uartprintf("Un petit uart de debug ! sur la pin PB3\n");
 
@@ -82,18 +83,27 @@ int main(void)
   // neopixelSetLed(0, coleur, 255);
   uint32_t level_battery = 1240;
 
-    // //NONblocking
-    // while (1){
-    //     laser.scanDataNonBlocking();
-    //     if(laser.newDataAvailable()){
-    //         laser.printLidarPoints();
-    //     }
-    // }
+  int oneTimeOnTen = 0;
+
 
 
   // LOOP
   while (1)
   {
+    laser.scanDataNonBlocking();
+    if(laser.newDataAvailable()){
+        if(oneTimeOnTen == 10){
+            laser.printLidarPoints();
+            oneTimeOnTen = 0;
+        }
+        else
+            oneTimeOnTen ++;
+    }
+    // if(laser.newDataAvailable()){
+    //     for(int i = 0; i < GS_MAX_SAMPLE; i++){
+    //         uartprintf("angle : %lf distance : %lf intensity : %lf\n", laser.samples[i].angle  * 180.0 / M_PI, laser.samples[i].distance, laser.samples[i].intensity);
+    //     }
+    // }
 
     coleur[0].red = (coleur[0].red + 5) % 256;
     coleur[1].green = (coleur[1].green + 5) % 256;

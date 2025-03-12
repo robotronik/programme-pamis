@@ -8,9 +8,9 @@
 #include "angles.h"
 
 //print param
-#define HEIGHT 100
+#define HEIGHT 50
 #define WIDTH (HEIGHT*2)
-#define MAX_RANGE 500
+#define MAX_RANGE 250
 
 #define __FUNCTION_NAME__ __func__
 #define checkHead(...) debug_checkHead(__FUNCTION_NAME__, __FILE__, __LINE__, __VA_ARGS__)
