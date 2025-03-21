@@ -22,7 +22,6 @@
 #ifndef __MAIN_H
 #define __MAIN_H
 
-
 /* Includes ------------------------------------------------------------------*/
 #include "stm32g4xx_hal.h"
 
@@ -55,24 +54,24 @@
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define STEP1_Pin GPIO_PIN_0
-#define STEP1_GPIO_Port GPIOA
-#define STEP2_Pin GPIO_PIN_1
-#define STEP2_GPIO_Port GPIOA
-#define DIR1_Pin GPIO_PIN_2
-#define DIR1_GPIO_Port GPIOA
-#define DIR2_Pin GPIO_PIN_3
-#define DIR2_GPIO_Port GPIOA
-#define EN_STEPPER_Pin GPIO_PIN_4
-#define EN_STEPPER_GPIO_Port GPIOA
+// #define STEP1_Pin GPIO_PIN_0
+// #define STEP1_GPIO_Port GPIOA
+// #define STEP2_Pin GPIO_PIN_1
+// #define STEP2_GPIO_Port GPIOA
+// #define DIR1_Pin GPIO_PIN_2
+// #define DIR1_GPIO_Port GPIOA
+// #define DIR2_Pin GPIO_PIN_3
+// #define DIR2_GPIO_Port GPIOA
+// #define EN_STEPPER_Pin GPIO_PIN_4
+// #define EN_STEPPER_GPIO_Port GPIOA
 // #define IMAGE_BATT_Pin GPIO_PIN_6
 // #define IMAGE_BATT_GPIO_Port GPIOA
-#define LED_USER_Pin GPIO_PIN_7
-#define LED_USER_GPIO_Port GPIOA
+// #define LED_USER_Pin GPIO_PIN_7
+// #define LED_USER_GPIO_Port GPIOA
 // #define SERVO3_Pin GPIO_PIN_0
 // #define SERVO3_GPIO_Port GPIOB
-#define SW_USER_Pin GPIO_PIN_10
-#define SW_USER_GPIO_Port GPIOA
+// #define SW_USER_Pin GPIO_PIN_10
+// #define SW_USER_GPIO_Port GPIOA
 #define SW_TIRETTE_Pin GPIO_PIN_11
 #define SW_TIRETTE_GPIO_Port GPIOA
 #define SW_TIRETTE_EXTI_IRQn EXTI15_10_IRQn
@@ -86,14 +85,9 @@
 // #define SERVO1_GPIO_Port GPIOB
 // #define SERVO2_Pin GPIO_PIN_5
 // #define SERVO2_GPIO_Port GPIOB
-#define TX_LIDAR_Pin GPIO_PIN_6
-#define TX_LIDAR_GPIO_Port GPIOB
-#define RX_LIDAR_Pin GPIO_PIN_7
-#define RX_LIDAR_GPIO_Port GPIOB
-
-  /* USER CODE BEGIN Private defines */
-
-  /* USER CODE END Private defines */
-
+// #define TX_LIDAR_Pin GPIO_PIN_6
+// #define TX_LIDAR_GPIO_Port GPIOB
+// #define RX_LIDAR_Pin GPIO_PIN_7
+// #define RX_LIDAR_GPIO_Port GPIOB
 
 #endif /* __MAIN_H */
