@@ -29,9 +29,14 @@
 #include "motor.h"
 #include "ledButtonPcb.h"
 #include "button.h"
+#include "timer_ms.h"
 /* Private variables ---------------------------------------------------------*/
 // Prototype for the state machine
 #define FLASH_STORAGE_ADDR (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
+
+#define NB_LED_DEBUG 1 
+#define NB_LED_ARM 2
+#define LED_ARM_POS 1
 
 void Flash_Write(uint8_t value);
 uint8_t Flash_Read(void);
@@ -73,6 +78,7 @@ int main(void)
 
   SystemClock_Config();
 
+  timerMsSetup(); 
   motorSetup();
   LedPcbSetup();
   ButtonPcbSetup();
@@ -128,6 +134,8 @@ int main(void)
 
   int oneTimeOnTen = 0;
   uartprintf("Pami setup Mode\n");
+    uint16_t notSpam; 
+    uint32_t timer; 
   // LOOP
   while (1)
   {
@@ -143,6 +151,17 @@ int main(void)
     //      else
     //        oneTimeOnTen++;
     //    }
+
+    notSpam ++; 
+    HAL_Delay(5);
+    if (notSpam > 2000){ 
+      notSpam = 0; 
+      uartprintf("--- TIME : %ld --- \n",millis()); 
+      uartprintf("level batt : %f%%\n",battGetPourcentage()); 
+      uartprintf("level batt : %fV\n",battGetVoltage()); 
+      uartprintf("level batt : %d\n",battGetRawValue()); 
+
+    }
 
     switch (state_machine)
     {
@@ -209,13 +228,15 @@ int main(void)
       {
         // le match vient de démarrer
         uartprintf("Pami wait, the match is started\n");
+        timer = millis() + 30000; 
         state_machine = state_wait;
       }
       break;
     case state_wait:
       // TODO make none blockant precise 85 seconds timer
-      if (0)
+      if (millis() > timer )
       {
+        uartprintf("PAMIS want to MOVE >:-(\n"); 
         state_machine = state_move;
       }
       break;
@@ -263,7 +284,6 @@ void debugfun(void)
 
     if (ButtonPcbGetValue() == GPIO_PIN_RESET)
     {
-      uartprintf("button 0 \n ");
       uartprintf("level batt : %f\n", battGetPourcentage());
       motorEnable();
 

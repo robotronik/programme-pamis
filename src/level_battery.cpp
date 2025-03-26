@@ -103,5 +103,5 @@ float battGetPourcentage(void)
 float battGetVoltage(void)
 {
 
-    return battGetRawValue() * (4096.0 / 3.3) * BATT_PDT_RATIO;
+    return battGetRawValue() * (3.3 / 4096.0) * BATT_PDT_RATIO;
 }

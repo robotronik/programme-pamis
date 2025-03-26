@@ -35,6 +35,42 @@ int motorTimerSetup(void);
 
 void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time);
 
+void motorStepper1Fallback (void){
+
+    HAL_TIM_Base_Stop_IT(&htim1);
+    // Code à exécuter après 25 ms
+    LedPcbToggle();
+    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP1_Pin);
+
+    stepper1.nbpas--;
+    if (stepper1.nbpas != 0)
+    {
+      MotorStartIRQTimer(&htim1, stepper1.timer);
+    }
+    else
+    {
+      motorReady |= MOTOR_1_READY;
+    }
+}
+void motorStepper2Fallback (void){
+
+    HAL_TIM_Base_Stop_IT(&htim2);
+
+    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP2_Pin);
+
+    stepper2.nbpas--;
+    if (stepper2.nbpas != 0)
+    {
+      MotorStartIRQTimer(&htim2, stepper2.timer);
+    }
+    else
+    {
+      motorReady |= MOTOR_2_READY;
+    }
+} 
+
+
+
 void motorSetup(void)
 {
   if (motorGPIOSetup())
@@ -73,7 +109,7 @@ int motorTimerSetup(void)
     return 1;
   }
 
-  HAL_TIM_Base_Start_IT(&htim1);
+  //HAL_TIM_Base_Start_IT(&htim1);
 
   htim2.Instance = TIM7;
   htim2.Init.Prescaler = MOTOR_TIMER_PRESCALER - 1;
@@ -90,7 +126,7 @@ int motorTimerSetup(void)
   {
     return 1;
   }
-  HAL_TIM_Base_Start_IT(&htim2);
+  //HAL_TIM_Base_Start_IT(&htim2);
   NVIC_EnableIRQ(TIM6_DAC_IRQn);
   NVIC_SetPriority(TIM6_DAC_IRQn, 2);
   NVIC_EnableIRQ(TIM7_DAC_IRQn);
@@ -98,43 +134,6 @@ int motorTimerSetup(void)
   return 0;
 }
 
-extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if (htim->Instance == TIM6)
-  {
-
-    HAL_TIM_Base_Stop_IT(&htim1);
-    // Code à exécuter après 25 ms
-    LedPcbToggle();
-    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP1_Pin);
-
-    stepper1.nbpas--;
-    if (stepper1.nbpas != 0)
-    {
-      MotorStartIRQTimer(&htim1, stepper1.timer);
-    }
-    else
-    {
-      motorReady |= MOTOR_1_READY;
-    }
-  }
-  if (htim->Instance == TIM7)
-  {
-    HAL_TIM_Base_Stop_IT(&htim2);
-
-    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP2_Pin);
-
-    stepper2.nbpas--;
-    if (stepper2.nbpas != 0)
-    {
-      MotorStartIRQTimer(&htim2, stepper2.timer);
-    }
-    else
-    {
-      motorReady |= MOTOR_2_READY;
-    }
-  }
-}
 
 int motorGPIOSetup(void)
 {

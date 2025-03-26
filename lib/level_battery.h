@@ -12,8 +12,8 @@
 #include <stdint.h>
 
 #define BATT_TENSION_MAX 8.4
-#define BATT_TENSION_MIN 7.2
-#define BATT_PDT_RATIO 0.359
+#define BATT_TENSION_MIN 6.6
+#define BATT_PDT_RATIO 2.78571428
 
 void battSetup(void);
 

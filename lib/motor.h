@@ -43,4 +43,8 @@ void motorRotate(int sens_horaire, float angle, float vitesse);  // en degres et
 
 int motorIsReady(void);
 
+
+void motorStepper1Fallback (void); 
+void motorStepper2Fallback (void); 
+
 #endif
