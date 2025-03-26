@@ -33,14 +33,6 @@
 #define MOTOR_DIR_CLOCKWISE         1
 #define MOTOR_DIR_ANTICLOCKWISE     0
 
-typedef struct
-{
-    int nbpas;  // nb de pas total à faire
-    int accel;  // nb de pas d'accel
-    int deccel; // nbpas de decel
-    int timer;  // timer min
-} deplacement_t;
-
 void motorSetup(void);
 
 void motorEnable(void);

@@ -2,8 +2,6 @@
 #include "stm32g4xx_hal.h"
 #include "system.h"
 
-#include "uart.h"
-
 ADC_HandleTypeDef hbatt;
 
 #define IMAGE_BATT_Pin GPIO_PIN_6
@@ -22,6 +20,7 @@ void battSetup(void)
     {
         Error_Handler();
     }
+    HAL_ADC_Start(&hbatt);
 }
 
 uint8_t battAdcSetup(void)
@@ -32,7 +31,6 @@ uint8_t battAdcSetup(void)
     PeriphClkInit.Adc12ClockSelection = RCC_ADC12CLKSOURCE_SYSCLK;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
-        uartprintf("[battAdcSetup] init rccex_periph failed\n");
         return 1;
     }
 
@@ -40,14 +38,14 @@ uint8_t battAdcSetup(void)
 
     ADC_ChannelConfTypeDef sConfig = {0};
     hbatt.Instance = ADC2;
-    hbatt.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV64;
+    hbatt.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV256;
     hbatt.Init.Resolution = ADC_RESOLUTION_12B;
     hbatt.Init.DataAlign = ADC_DATAALIGN_RIGHT;
     hbatt.Init.GainCompensation = 0;
     hbatt.Init.ScanConvMode = ADC_SCAN_DISABLE;
     hbatt.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
     hbatt.Init.LowPowerAutoWait = DISABLE;
-    hbatt.Init.ContinuousConvMode = DISABLE;
+    hbatt.Init.ContinuousConvMode = ENABLE;
     hbatt.Init.NbrOfConversion = 1;
     hbatt.Init.DiscontinuousConvMode = DISABLE;
     hbatt.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -57,7 +55,6 @@ uint8_t battAdcSetup(void)
     hbatt.Init.OversamplingMode = DISABLE;
     if (HAL_ADC_Init(&hbatt) != HAL_OK)
     {
-        uartprintf("[battAdcSetup] init adc_init failed\n");
         return 1;
     }
 
@@ -71,7 +68,6 @@ uint8_t battAdcSetup(void)
     sConfig.Offset = 0;
     if (HAL_ADC_ConfigChannel(&hbatt, &sConfig) != HAL_OK)
     {
-        uartprintf("[battAdcSetup] init adc_config_channel failed\n");
         return 1;
     }
 
@@ -95,11 +91,17 @@ uint8_t battGpioSetup(void)
 
 uint32_t battGetRawValue(void)
 {
-    // TODO
-    return 0;
+
+    return HAL_ADC_GetValue(&hbatt);
 }
 float battGetPourcentage(void)
 {
-    // TODO
-    return 0;
+
+    return ((battGetVoltage() - (float)BATT_TENSION_MIN) / (BATT_TENSION_MAX - BATT_TENSION_MIN)) * 100.0;
+}
+
+float battGetVoltage(void)
+{
+
+    return battGetRawValue() * (4096.0 / 3.3) * BATT_PDT_RATIO;
 }

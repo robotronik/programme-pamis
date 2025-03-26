@@ -39,15 +39,6 @@ void ButtonPcbSetup(void)
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(BUTTONPCB_Port, &GPIO_InitStruct);
 }
-void ButtonPcbSetupInterrupt(void *isr(void)){
-    //todo 
-}
 GPIO_PinState ButtonPcbGetValue(void){
     return HAL_GPIO_ReadPin(BUTTONPCB_Port,BUTTONPCB_Pin);
-}
-void ButtonPcbEnableInterrupt(void){
-    //TODO
-}
-void ButtonPcbDisableInterrupt(void){
-    //TODO
 }

@@ -24,9 +24,5 @@ void LedPcbOff(void);
 
 void ButtonPcbSetup(void);
 GPIO_PinState ButtonPcbGetValue(void);
-//todo bouton en interruption
-void ButtonPcbSetupInterrupt(void *isr(void));
-void ButtonPcbEnableInterrupt(void);
-void ButtonPcbDisableInterrupt(void);
 
 #endif

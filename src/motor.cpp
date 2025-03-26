@@ -7,6 +7,16 @@
 #define MOTOR_1_READY (1 << 0)
 #define MOTOR_2_READY (1 << 1)
 
+
+typedef struct
+{
+    int nbpas;  // nb de pas total à faire
+    int accel;  // nb de pas d'accel
+    int deccel; // nbpas de decel
+    int timer;  // timer min
+} deplacement_t;
+
+
 // VARIABLE
 volatile int motorReady;
 volatile uint32_t nbStep1;
@@ -105,7 +115,7 @@ extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     else
     {
-      motorReady &= ~MOTOR_1_READY;
+      motorReady |= MOTOR_1_READY;
     }
   }
   if (htim->Instance == TIM7)
@@ -121,7 +131,7 @@ extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     else
     {
-      motorReady &= ~MOTOR_2_READY;
+      motorReady |= MOTOR_2_READY;
     }
   }
 }
@@ -184,6 +194,7 @@ void motorMove(int direction, float distance, float vitesse)
 }
 // en degres et degres par seconde
 void motorRotate(int sens_horaire, float angle, float vitesse){
+  motorReady = 0;
   if (sens_horaire == MOTOR_DIR_CLOCKWISE)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
@@ -194,7 +205,10 @@ void motorRotate(int sens_horaire, float angle, float vitesse){
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
   }
 
-  float nbpas = (((DIAM_INTER_ROUE/2.0)*2.0*PI) * (angle / (2.0*PI)) * 360.0) / (((DIAM_ROUE / 2.0) * 2.0 * PI) / PAS_PAR_TOUR);  
+  float length_cercle_rotation = (DIAM_INTER_ROUE/2.0)*2.0*PI;
+  float distance = length_cercle_rotation * (angle / 360.0); 
+
+  float nbpas = distance / (((DIAM_ROUE / 2.0) * 2.0 * PI) / PAS_PAR_TOUR) ;
 
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
@@ -214,7 +228,7 @@ void motorRotate(int sens_horaire, float angle, float vitesse){
 
 int motorIsReady(void)
 {
-  return motorReady == 1 << 0;
+  return (motorReady == (MOTOR_1_READY | MOTOR_2_READY));
 }
 
 /**
