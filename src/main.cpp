@@ -34,7 +34,7 @@
 // Prototype for the state machine
 #define FLASH_STORAGE_ADDR (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
 
-#define NB_LED_DEBUG 1 
+#define NB_LED_DEBUG 1
 #define NB_LED_ARM 2
 #define LED_ARM_POS 1
 
@@ -78,7 +78,7 @@ int main(void)
 
   SystemClock_Config();
 
-  timerMsSetup(); 
+  timerMsSetup();
   motorSetup();
   LedPcbSetup();
   ButtonPcbSetup();
@@ -94,7 +94,7 @@ int main(void)
 
   if (ButtonPcbGetValue() == GPIO_PIN_RESET)
   {
-    neopixelSetLed(0, {255, 255, 255}, 255);
+    neopixelSetLed(0, (colorRGB_t){255, 255, 255});
     state_machine = state_debug;
     HAL_Delay(1000);
     debugfun();
@@ -107,6 +107,8 @@ int main(void)
   //  Démarrer PWM sur les canaux 1, 2 et 3
   servoEnable(SERVO1);
   servoEnable(SERVO2);
+  servoWrite(SERVO1_CHAN,1700); 
+  servoWrite(SERVO2_CHAN,1700); 
 
   numPamis = Flash_Read(); // Lire la valeur stockée
 
@@ -134,8 +136,9 @@ int main(void)
 
   int oneTimeOnTen = 0;
   uartprintf("Pami setup Mode\n");
-    uint16_t notSpam; 
-    uint32_t timer; 
+  uint16_t notSpam;
+  uint32_t timer;
+  colorHSV_t hsv = {120.0, 1.0, 1.0};
   // LOOP
   while (1)
   {
@@ -152,15 +155,15 @@ int main(void)
     //        oneTimeOnTen++;
     //    }
 
-    notSpam ++; 
+    notSpam++;
     HAL_Delay(5);
-    if (notSpam > 2000){ 
-      notSpam = 0; 
-      uartprintf("--- TIME : %ld --- \n",millis()); 
-      uartprintf("level batt : %f%%\n",battGetPourcentage()); 
-      uartprintf("level batt : %fV\n",battGetVoltage()); 
-      uartprintf("level batt : %d\n",battGetRawValue()); 
-
+    if (notSpam > 2000)
+    {
+      notSpam = 0;
+      uartprintf("--- TIME : %ld --- \n", millis());
+      uartprintf("level batt : %f%%\n", battGetPourcentage());
+      uartprintf("level batt : %fV\n", battGetVoltage());
+      uartprintf("level batt : %d\n", battGetRawValue());
     }
 
     switch (state_machine)
@@ -192,16 +195,16 @@ int main(void)
       {
       // indication lumineux de la position du PAMIS
       case 0: // super star
-        neopixelSetLed(0, {255, 255, 255}, 255);
+        neopixelSetLed(0, (colorRGB_t){255, 255, 255});
         break;
       case 1:
-        neopixelSetLed(0, {255, 0, 255}, 255);
+        neopixelSetLed(0, (colorRGB_t){255, 0, 255});
         break;
       case 2:
-        neopixelSetLed(0, {255, 0, 0}, 255);
+        neopixelSetLed(0, (colorRGB_t){255, 0, 0});
         break;
       case 3:
-        neopixelSetLed(0, {0, 0, 255}, 255);
+        neopixelSetLed(0, (colorRGB_t){0, 0, 255});
         break;
       }
 
@@ -219,32 +222,65 @@ int main(void)
       if (ButtonTeamGetValue() == GPIO_PIN_RESET)
       {
         team = team_blue;
+        neopixelSetLed(0, (colorRGB_t){0, 0, 255});
       }
       else
       {
         team = team_yellow;
+        neopixelSetLed(0, (colorRGB_t){255, 255, 0});
       }
       if (ButtonTiretteGetValue() == GPIO_PIN_SET)
       {
         // le match vient de démarrer
         uartprintf("Pami wait, the match is started\n");
-        timer = millis() + 30000; 
+        timer = millis() + 3000; // TODO set correct value 85000
         state_machine = state_wait;
       }
       break;
     case state_wait:
-      // TODO make none blockant precise 85 seconds timer
-      if (millis() > timer )
+      if (millis() > timer)
       {
-        uartprintf("PAMIS want to MOVE >:-(\n"); 
+        uartprintf("PAMIS want to MOVE >:-(\n");
         state_machine = state_move;
+        motorEnable();
+        motorMove(MOTOR_DIR_FORWARD, 1500, 200);
       }
       break;
     case state_move:
       // TODO gestion du movement
+      if (motorIsReady() == 1)
+      {
+        motorDisable();
+        uartprintf("PAMIS DANCE");
+        state_machine = state_dance;
+      }
       break;
     case state_dance:
+      static uint8_t dance_phase = 0;
       // TODO let's go dance !
+      if (timer < millis())
+      {
+        timer = millis() + 500;
+        switch (dance_phase)
+        {
+        case 0:
+          servoWrite(SERVO1_CHAN, 750);
+          servoWrite(SERVO2_CHAN, 750);
+          dance_phase = 1;
+          break;
+        case 1:
+          servoWrite(SERVO1_CHAN, 2200);
+          servoWrite(SERVO2_CHAN, 2200);
+          dance_phase = 0;
+          break;
+
+        default:
+          dance_phase = 0;
+          break;
+        }
+      }
+      hsv.H = fmod(hsv.H + 0.2, 360.0);
+      neopixelSetMoreLeds(0, &hsv, 1);
       break;
     case state_end:
       // c'est fini T-T
@@ -263,7 +299,7 @@ void debugfun(void)
   // ici c'est la guerre, on test des trucs et ça marche pas...
 
   uint32_t level_battery = 1240;
-  color_t coleur[3] = {{0, 0, 0}, {0, 55, 0}, {0, 0, 127}};
+  colorRGB_t coleur[3] = {{0, 0, 0}, {0, 55, 0}, {0, 0, 127}};
 
   uartprintf("MODE DEBUG ACTIVÉ !!!\n");
   while (1)

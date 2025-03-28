@@ -165,6 +165,7 @@ void motorDisable(void)
 // en mm & mm/s
 void motorMove(int direction, float distance, float vitesse)
 {
+  distance *= 2; 
   motorReady = 0;
   if (direction == MOTOR_DIR_FORWARD)
   {

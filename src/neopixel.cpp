@@ -1,6 +1,4 @@
 #include "neopixel.h"
-#include "stm32g4xx_hal.h"
-#include "uart.h"
 
 #define NEOPIXEL_RESET_TIMER_TICK 64
 #define PWM_HI 70
@@ -142,33 +140,181 @@ void neopixelClear(void)
     _sendNeopixel();
 }
 
-void neopixelSetLed(uint16_t numLed, color_t color, uint8_t brightness)
+void neopixelSetLed(uint16_t numLed, colorRGB_t color)
 {
-    color.red = color.red * (float)brightness / 255;
-    color.green = color.green * (float)brightness / 255;
-    color.blue = color.blue * (float)brightness / 255;
     neopixelSetMoreLeds(numLed, &color, 1);
 }
 
-void neopixelSetMoreLeds(uint16_t firstled, color_t color[], size_t size)
+void neopixelSetLed(uint16_t numLed, colorRGBA_t color)
 {
-    int32_t indx = firstled * 24;
+    colorRGB_t colorRGB = RGBA_to_RGB(color);
+    neopixelSetMoreLeds(numLed, &colorRGB, 1);
+}
+void neopixelSetLed(uint16_t numLed, colorHSV_t color)
+{
+    colorRGB_t colorRGB = HSV_to_RGB(color);
+    neopixelSetMoreLeds(numLed, &colorRGB, 1);
+}
+
+void __writeData(uint16_t indx, uint32_t col)
+{
+    indx = indx * 24;
+    for (int i = 23; i >= 0; i--)
+    {
+        if (col & (1 << i))
+        {
+            data[indx] = PWM_HI;
+        }
+
+        else
+        {
+            data[indx] = PWM_LOW;
+        }
+        indx++;
+    }
+}
+
+void neopixelSetMoreLeds(uint16_t firstled, colorRGB_t color[], size_t size)
+{
     for (uint16_t j = 0; j < size; j++)
     {
         uint32_t col = color[j].green << 16 | color[j].red << 8 | color[j].blue;
-        for (int i = 23; i >= 0; i--)
-        {
-            if (col & (1 << i))
-            {
-                data[indx] = PWM_HI;
-            }
-
-            else
-            {
-                data[indx] = PWM_LOW;
-            }
-            indx++;
-        }
+        __writeData(j + firstled, col);
     }
     _sendNeopixel();
+}
+void neopixelSetMoreLeds(uint16_t firstled, colorHSV_t color[], size_t size)
+{
+    for (uint16_t j = 0; j < size; j++)
+    {
+        colorRGB_t RGB = HSV_to_RGB(color[j]);
+        uint32_t col = RGB.green << 16 | RGB.red << 8 | RGB.blue;
+        __writeData(j + firstled, col);
+    }
+    _sendNeopixel();
+}
+void neopixelSetMoreLeds(uint16_t firstled, colorRGBA_t color[], size_t size)
+{
+    for (uint16_t j = 0; j < size; j++)
+    {
+        colorRGB_t RGB = RGBA_to_RGB(color[j]);
+        uint32_t col = RGB.green << 16 | RGB.red << 8 | RGB.blue;
+        __writeData(j + firstled, col);
+    }
+    _sendNeopixel();
+}
+/**
+ * @brief Convertit une couleur HSV en RGB
+ */
+colorRGB_t HSV_to_RGB(colorHSV_t hsv)
+{
+    float h = hsv.H, s = hsv.S, v = hsv.V;
+    float c = v * s;
+    float x = c * (1 - fabs(fmod(h / 60.0, 2) - 1));
+    float m = v - c;
+
+    float r1, g1, b1;
+    if (h < 60)
+    {
+        r1 = c;
+        g1 = x;
+        b1 = 0;
+    }
+    else if (h < 120)
+    {
+        r1 = x;
+        g1 = c;
+        b1 = 0;
+    }
+    else if (h < 180)
+    {
+        r1 = 0;
+        g1 = c;
+        b1 = x;
+    }
+    else if (h < 240)
+    {
+        r1 = 0;
+        g1 = x;
+        b1 = c;
+    }
+    else if (h < 300)
+    {
+        r1 = x;
+        g1 = 0;
+        b1 = c;
+    }
+    else
+    {
+        r1 = c;
+        g1 = 0;
+        b1 = x;
+    }
+
+    colorRGB_t rgb = {
+        .red = (uint8_t)((r1 + m) * 255),
+        .green = (uint8_t)((g1 + m) * 255),
+        .blue = (uint8_t)((b1 + m) * 255)};
+    return rgb;
+}
+
+/**
+ * @brief Convertit une couleur HSV en RGBA (Alpha fixe à 255)
+ */
+colorRGBA_t HSV_to_RGBA(colorHSV_t hsv)
+{
+    colorRGB_t rgb = HSV_to_RGB(hsv);
+    colorRGBA_t rgba = {rgb.red, rgb.green, rgb.blue, 255};
+    return rgba;
+}
+
+/**
+ * @brief Convertit une couleur RGB en HSV
+ */
+colorHSV_t RGB_to_HSV(colorRGB_t rgb)
+{
+    float r = rgb.red / 255.0;
+    float g = rgb.green / 255.0;
+    float b = rgb.blue / 255.0;
+
+    float max = fmaxf(r, fmaxf(g, b));
+    float min = fminf(r, fminf(g, b));
+    float delta = max - min;
+
+    float h = 0.0, s = 0.0, v = max;
+
+    if (delta > 0.00001)
+    {
+        if (max == r)
+        {
+            h = 60 * fmod(((g - b) / delta), 6);
+        }
+        else if (max == g)
+        {
+            h = 60 * (((b - r) / delta) + 2);
+        }
+        else if (max == b)
+        {
+            h = 60 * (((r - g) / delta) + 4);
+        }
+
+        if (h < 0)
+            h += 360;
+    }
+
+    s = (max == 0) ? 0 : (delta / max);
+
+    colorHSV_t hsv = {h, s, v};
+    return hsv;
+}
+colorRGB_t RGBA_to_RGB(colorRGBA_t rgba)
+{
+    float brightness = rgba.alpha / 255.0; // Normalisation de la luminosité (0.0 - 1.0)
+
+    colorRGB_t rgb = {
+        .red = (uint8_t)(rgba.red * brightness),
+        .green = (uint8_t)(rgba.green * brightness),
+        .blue = (uint8_t)(rgba.blue * brightness)};
+
+    return rgb;
 }
