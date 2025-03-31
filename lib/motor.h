@@ -23,7 +23,7 @@
 #define MOTOR_ENABLE_Pin                  GPIO_PIN_4
 
 #define DIAM_ROUE                   60.0
-#define DIAM_INTER_ROUE             90.0
+#define DIAM_INTER_ROUE             87.0
 #define PAS_PAR_TOUR                400 // prendre en compte le microstepping
 #define MOTOR_CLOCK_TIMER           84 //MHz 
 #define MOTOR_TIMER_PRESCALER       840

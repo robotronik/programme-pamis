@@ -194,8 +194,9 @@ void motorMove(int direction, float distance, float vitesse)
 }
 // en degres et degres par seconde
 void motorRotate(int sens_horaire, float angle, float vitesse){
+
   motorReady = 0;
-  if (sens_horaire == MOTOR_DIR_CLOCKWISE)
+  if (sens_horaire == MOTOR_DIR_ANTICLOCKWISE)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
@@ -205,7 +206,7 @@ void motorRotate(int sens_horaire, float angle, float vitesse){
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
   }
 
-  float length_cercle_rotation = (DIAM_INTER_ROUE/2.0)*2.0*PI;
+  float length_cercle_rotation = (DIAM_INTER_ROUE)*2.0*PI;
   float distance = length_cercle_rotation * (angle / 360.0); 
 
   float nbpas = distance / (((DIAM_ROUE / 2.0) * 2.0 * PI) / PAS_PAR_TOUR) ;
@@ -213,7 +214,7 @@ void motorRotate(int sens_horaire, float angle, float vitesse){
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
 
-  float time = (angle / vitesse) / nbpas * 1000;
+  float time = (angle / vitesse) / nbpas ;
   float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) /   MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer;

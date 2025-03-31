@@ -41,6 +41,12 @@
 void Flash_Write(uint8_t value);
 uint8_t Flash_Read(void);
 
+uint8_t deplacement(void);
+int deplacementSuperStar(void);
+int deplacementPremierPamis(void);
+int deplacementSecondPamis(void);
+int deplacementTroisiemePamis(void);
+
 void debugfun(void);
 
 CYdLidar laser;
@@ -107,8 +113,8 @@ int main(void)
   //  Démarrer PWM sur les canaux 1, 2 et 3
   servoEnable(SERVO1);
   servoEnable(SERVO2);
-  servoWrite(SERVO1_CHAN,1700); 
-  servoWrite(SERVO2_CHAN,1700); 
+  servoWrite(SERVO1_CHAN, 1700);
+  servoWrite(SERVO2_CHAN, 1700);
 
   numPamis = Flash_Read(); // Lire la valeur stockée
 
@@ -138,7 +144,7 @@ int main(void)
   uartprintf("Pami setup Mode\n");
   uint16_t notSpam;
   uint32_t timer;
-  colorHSV_t hsv = {120.0, 1.0, 1.0};
+  colorHSV_t hsv[3] = {{120.0, 1.0, 1.0}, {120.0, 1.0, 1.0}, {120.1, 1.0, 1.0}};
   // LOOP
   while (1)
   {
@@ -243,17 +249,17 @@ int main(void)
         uartprintf("PAMIS want to MOVE >:-(\n");
         state_machine = state_move;
         motorEnable();
-        motorMove(MOTOR_DIR_FORWARD, 1500, 200);
       }
       break;
     case state_move:
       // TODO gestion du movement
-      if (motorIsReady() == 1)
-      {
-        motorDisable();
-        uartprintf("PAMIS DANCE");
-        state_machine = state_dance;
-      }
+      if (deplacement())
+        if (motorIsReady() == 1)
+        {
+          motorDisable();
+          uartprintf("PAMIS DANCE");
+          state_machine = state_dance;
+        }
       break;
     case state_dance:
       static uint8_t dance_phase = 0;
@@ -279,8 +285,10 @@ int main(void)
           break;
         }
       }
-      hsv.H = fmod(hsv.H + 0.2, 360.0);
-      neopixelSetMoreLeds(0, &hsv, 1);
+      hsv[0].H = fmod(hsv[0].H + 0.2, 360.0);
+      hsv[1].H = fmod(hsv[1].H + 0.2, 360.0);
+      hsv[2].H = fmod(hsv[2].H + 0.2, 360.0);
+      neopixelSetMoreLeds(0, hsv, 3);
       break;
     case state_end:
       // c'est fini T-T
@@ -324,9 +332,19 @@ void debugfun(void)
       motorEnable();
 
       motorMove(MOTOR_DIR_FORWARD, 100.0, 200);
-      // motorRotate(MOTOR_DIR_CLOCKWISE, 90, 90);
       while (motorIsReady() == 0)
         ;
+        HAL_Delay(1000); 
+      motorMove(MOTOR_DIR_FORWARD, 100.0, 300);
+      while (motorIsReady() == 0)
+        ;
+        HAL_Delay(1000); 
+      motorMove(MOTOR_DIR_FORWARD, 100.0, 400);
+      while (motorIsReady() == 0)
+        ;
+        HAL_Delay(1000); 
+
+
 
       motorDisable();
       for (int i = 0; i < 1; i++)
@@ -378,4 +396,173 @@ void Flash_Write(uint8_t value)
 uint8_t Flash_Read(void)
 {
   return *((uint8_t *)FLASH_STORAGE_ADDR);
+}
+
+uint8_t deplacement(void)
+{
+  static uint32_t timer = 0;
+
+  if (motorIsReady())
+  {
+    switch (numPamis)
+    {
+    case 0:
+      if (deplacementSuperStar())
+        return 1;
+      break;
+
+    case 1: // le pamis le plus proche
+      if (deplacementPremierPamis())
+        return 1;
+    case 2: // le pamis du milieu
+      if (deplacementSecondPamis())
+        return 1;
+    case 3: // le pamis du fond
+      if (deplacementTroisiemePamis())
+        return 1;
+    default:
+      neopixelSetLed(0, (colorRGB_t){255, 0, 0});
+      break;
+    }
+  }
+  return 0;
+}
+
+int deplacementPremierPamis(void)
+{
+  uint8_t rotation = (team == team_yellow ? MOTOR_DIR_CLOCKWISE : MOTOR_DIR_ANTICLOCKWISE);
+
+  static uint8_t phaseDeplacement = 0;
+  switch (phaseDeplacement)
+  {
+  case 0:
+    motorMove(MOTOR_DIR_FORWARD, 300, 300);
+    break;
+  case 1:
+    motorRotate(rotation, 35, 90);
+    break;
+  case 2:
+    motorMove(MOTOR_DIR_FORWARD, 800, 300);
+    break;
+  case 3:
+    motorRotate(!rotation, 85, 90);
+
+    break;
+  case 4:
+    phaseDeplacement = 0;
+    return 1;
+    break;
+  default:
+    phaseDeplacement = 0;
+    break;
+  }
+  phaseDeplacement++;
+  return 0;
+}
+
+int deplacementSecondPamis(void)
+{
+  uint8_t rotation = (team == team_yellow ? MOTOR_DIR_CLOCKWISE : MOTOR_DIR_ANTICLOCKWISE);
+
+  static uint8_t phaseDeplacement = 0;
+  switch (phaseDeplacement)
+  {
+  case 0:
+    motorMove(MOTOR_DIR_FORWARD, 250, 300);
+    break;
+  case 1:
+    motorRotate(rotation, 35, 90);
+    break;
+  case 2:
+    motorMove(MOTOR_DIR_FORWARD, 800, 350);
+    break;
+  case 3:
+    motorRotate(!rotation, 35, 90);
+
+    break;
+  case 4:
+    motorMove(MOTOR_DIR_FORWARD, 500, 300);
+    break;
+  case 5:
+    motorRotate(!rotation, 90, 90);
+    break;
+  case 6:
+    phaseDeplacement = 0;
+    return 1;
+    break;
+  default:
+    phaseDeplacement = 0;
+    break;
+  }
+  phaseDeplacement++;
+  return 0;
+}
+int deplacementTroisiemePamis(void)
+{
+  uint8_t rotation = (team == team_yellow ? MOTOR_DIR_CLOCKWISE : MOTOR_DIR_ANTICLOCKWISE);
+
+  static uint8_t phaseDeplacement = 0;
+  switch (phaseDeplacement)
+  {
+  case 0:
+    motorMove(MOTOR_DIR_FORWARD, 200, 300);
+    break;
+  case 1:
+    motorRotate(rotation, 35, 90);
+    break;
+  case 2:
+    motorMove(MOTOR_DIR_FORWARD, 800, 350);
+    break;
+  case 3:
+    motorRotate(!rotation, 35, 90);
+
+    break;
+  case 4:
+    motorMove(MOTOR_DIR_FORWARD, 1000, 300);
+    break;
+  case 5:
+    motorRotate(!rotation, 115, 90);
+    break;
+  case 6:
+    phaseDeplacement = 0;
+    return 1;
+    break;
+  default:
+    phaseDeplacement = 0;
+    break;
+  }
+  phaseDeplacement++;
+  return 0;
+}
+int deplacementSuperStar(void)
+{
+  static uint8_t phaseDeplacement = 0;
+  switch (phaseDeplacement)
+  {
+  case 0:
+    motorMove(MOTOR_DIR_FORWARD, 1500, 300);
+    break;
+  case 1:
+    if (team_yellow == team)
+    {
+      motorRotate(MOTOR_DIR_CLOCKWISE, 90, 90);
+    }
+    else
+    {
+      motorRotate(MOTOR_DIR_ANTICLOCKWISE, 90, 90);
+    }
+    break;
+  case 2:
+    motorMove(MOTOR_DIR_FORWARD, 250, 150);
+    break;
+  case 3:
+    phaseDeplacement = 0;
+    return 1;
+    break;
+
+  default:
+    phaseDeplacement = 0;
+    break;
+  }
+  phaseDeplacement++;
 }
