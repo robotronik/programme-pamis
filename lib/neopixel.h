@@ -17,7 +17,7 @@
 #include "system.h"
 
 // nombre de led sur le connecteur (la led de status déjà compté)
-#define NEOPIXEL_NB 2
+#define NEOPIXEL_NB 10
 
 typedef struct
 {

@@ -22,9 +22,9 @@
 #define MOTOR_DIR2_Pin                    GPIO_PIN_3
 #define MOTOR_ENABLE_Pin                  GPIO_PIN_4
 
-#define DIAM_ROUE                   60.0
+#define DIAM_ROUE                   58.0
 #define DIAM_INTER_ROUE             87.0
-#define PAS_PAR_TOUR                400 // prendre en compte le microstepping
+#define PAS_PAR_TOUR                800 // prendre en compte le microstepping
 #define MOTOR_CLOCK_TIMER           84 //MHz 
 #define MOTOR_TIMER_PRESCALER       840
 
@@ -40,6 +40,7 @@ void motorDisable(void);
 
 void motorMove(int direction, float distance, float vitesse); // en mm & mm/s
 void motorRotate(int sens_horaire, float angle, float vitesse);  // en degres et degres par seconde
+void motorTurn(int direction,float angle, float PointOfRotation, float vitesse); // point de rotation positif : clockwise
 
 int motorIsReady(void);
 

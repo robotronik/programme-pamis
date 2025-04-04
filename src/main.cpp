@@ -34,9 +34,8 @@
 // Prototype for the state machine
 #define FLASH_STORAGE_ADDR (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
 
-#define NB_LED_DEBUG 1
-#define NB_LED_ARM 2
-#define LED_ARM_POS 1
+#define LED_WING_NB 2
+#define LED_WING_POS 0
 
 void Flash_Write(uint8_t value);
 uint8_t Flash_Read(void);
@@ -98,6 +97,8 @@ int main(void)
   NVIC_EnableIRQ;
   __enable_irq();
 
+  HAL_Delay(50);
+
   if (ButtonPcbGetValue() == GPIO_PIN_RESET)
   {
     neopixelSetLed(0, (colorRGB_t){255, 255, 255});
@@ -145,6 +146,8 @@ int main(void)
   uint16_t notSpam;
   uint32_t timer;
   colorHSV_t hsv[3] = {{120.0, 1.0, 1.0}, {120.0, 1.0, 1.0}, {120.1, 1.0, 1.0}};
+  colorRGB_t wing_color[LED_WING_NB]; 
+  neopixelClear();
   // LOOP
   while (1)
   {
@@ -201,16 +204,36 @@ int main(void)
       {
       // indication lumineux de la position du PAMIS
       case 0: // super star
-        neopixelSetLed(0, (colorRGB_t){255, 255, 255});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 255;
+          wing_color[i].green = 255;
+          wing_color[i].blue = 255;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
         break;
       case 1:
-        neopixelSetLed(0, (colorRGB_t){255, 0, 255});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 255;
+          wing_color[i].green = 0;
+          wing_color[i].blue = 255;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
         break;
       case 2:
-        neopixelSetLed(0, (colorRGB_t){255, 0, 0});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 255;
+          wing_color[i].green = 0;
+          wing_color[i].blue = 0;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
         break;
       case 3:
-        neopixelSetLed(0, (colorRGB_t){0, 0, 255});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 0;
+          wing_color[i].green = 125;
+          wing_color[i].blue = 255;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
         break;
       }
 
@@ -228,22 +251,36 @@ int main(void)
       if (ButtonTeamGetValue() == GPIO_PIN_RESET)
       {
         team = team_blue;
-        neopixelSetLed(0, (colorRGB_t){0, 0, 255});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 0;
+          wing_color[i].green = 0;
+          wing_color[i].blue = 255;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
       }
       else
       {
         team = team_yellow;
-        neopixelSetLed(0, (colorRGB_t){255, 255, 0});
+        for (int i = 0; i < LED_WING_NB; i++ ){
+          wing_color[i].red = 255;
+          wing_color[i].green = 255;
+          wing_color[i].blue = 0;
+        }
+        neopixelSetMoreLeds(LED_WING_POS,wing_color,LED_WING_NB);
       }
       if (ButtonTiretteGetValue() == GPIO_PIN_SET)
       {
         // le match vient de démarrer
         uartprintf("Pami wait, the match is started\n");
-        timer = millis() + 3000; // TODO set correct value 85000
+        timer = millis() + 85000; // TODO set correct value 85000
         state_machine = state_wait;
       }
       break;
     case state_wait:
+      if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
+      {
+        state_machine = state_setup;
+      }
       if (millis() > timer)
       {
         uartprintf("PAMIS want to MOVE >:-(\n");
@@ -254,7 +291,6 @@ int main(void)
     case state_move:
       // TODO gestion du movement
       if (deplacement())
-        if (motorIsReady() == 1)
         {
           motorDisable();
           uartprintf("PAMIS DANCE");
@@ -289,6 +325,10 @@ int main(void)
       hsv[1].H = fmod(hsv[1].H + 0.2, 360.0);
       hsv[2].H = fmod(hsv[2].H + 0.2, 360.0);
       neopixelSetMoreLeds(0, hsv, 3);
+      if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
+      {
+        state_machine = state_setup;
+      }
       break;
     case state_end:
       // c'est fini T-T
@@ -331,21 +371,36 @@ void debugfun(void)
       uartprintf("level batt : %f\n", battGetPourcentage());
       motorEnable();
 
+      motorTurn(MOTOR_DIR_FORWARD, 90, 100, 200);
+      while (motorIsReady() == 0)
+        ;
+      motorRotate(MOTOR_DIR_ANTICLOCKWISE,90,90);
+      while (motorIsReady() == 0)
+        ;
       motorMove(MOTOR_DIR_FORWARD, 100.0, 200);
       while (motorIsReady() == 0)
         ;
-        HAL_Delay(1000); 
-      motorMove(MOTOR_DIR_FORWARD, 100.0, 300);
+      motorTurn(MOTOR_DIR_FORWARD,180, 100, 200);
       while (motorIsReady() == 0)
         ;
-        HAL_Delay(1000); 
-      motorMove(MOTOR_DIR_FORWARD, 100.0, 400);
-      while (motorIsReady() == 0)
-        ;
-        HAL_Delay(1000); 
-
-
-
+      //motorMove(MOTOR_DIR_FORWARD, 100.0, 200);
+      //while (motorIsReady() == 0)
+      //  ;
+//
+//      motorTurn(MOTOR_DIR_FORWARD, 180, -90, 200);
+//      while (motorIsReady() == 0)
+//        ;
+//      motorMove(MOTOR_DIR_FORWARD, 100.0, 200);
+//      while (motorIsReady() == 0)
+//        ;
+//
+//      motorTurn(MOTOR_DIR_FORWARD, 90, 200, 200);
+//      while (motorIsReady() == 0)
+//        ;
+//      motorMove(MOTOR_DIR_FORWARD, 100.0, 200);
+//      while (motorIsReady() == 0)
+//        ;
+//
       motorDisable();
       for (int i = 0; i < 1; i++)
       {
@@ -414,14 +469,17 @@ uint8_t deplacement(void)
     case 1: // le pamis le plus proche
       if (deplacementPremierPamis())
         return 1;
+      break;
     case 2: // le pamis du milieu
       if (deplacementSecondPamis())
         return 1;
+      break;
     case 3: // le pamis du fond
       if (deplacementTroisiemePamis())
         return 1;
+      break;
     default:
-      neopixelSetLed(0, (colorRGB_t){255, 0, 0});
+      neopixelSetLed(0, (colorRGB_t){255, 0,0});
       break;
     }
   }
@@ -436,13 +494,13 @@ int deplacementPremierPamis(void)
   switch (phaseDeplacement)
   {
   case 0:
-    motorMove(MOTOR_DIR_FORWARD, 300, 300);
+    motorMove(MOTOR_DIR_FORWARD, 300, 150);
     break;
   case 1:
-    motorRotate(rotation, 35, 90);
+    motorRotate(rotation, 35, 45);
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 800, 300);
+    motorMove(MOTOR_DIR_FORWARD, 800, 150);
     break;
   case 3:
     motorRotate(!rotation, 85, 90);
@@ -468,25 +526,28 @@ int deplacementSecondPamis(void)
   switch (phaseDeplacement)
   {
   case 0:
-    motorMove(MOTOR_DIR_FORWARD, 250, 300);
+    motorMove(MOTOR_DIR_FORWARD, 250, 150);
     break;
   case 1:
-    motorRotate(rotation, 35, 90);
+    motorRotate(rotation, 35, 45);
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 800, 350);
+    motorMove(MOTOR_DIR_FORWARD, 700, 180);
     break;
   case 3:
-    motorRotate(!rotation, 35, 90);
+    motorRotate(!rotation, 35, 45);
 
     break;
   case 4:
-    motorMove(MOTOR_DIR_FORWARD, 500, 300);
+    motorMove(MOTOR_DIR_FORWARD, 500, 150);
     break;
   case 5:
-    motorRotate(!rotation, 90, 90);
+    motorRotate(!rotation, 90, 45);
     break;
   case 6:
+    motorMove(MOTOR_DIR_FORWARD, 50, 150);
+    break;
+  case 7:
     phaseDeplacement = 0;
     return 1;
     break;
@@ -505,25 +566,28 @@ int deplacementTroisiemePamis(void)
   switch (phaseDeplacement)
   {
   case 0:
-    motorMove(MOTOR_DIR_FORWARD, 200, 300);
+    motorMove(MOTOR_DIR_FORWARD, 200, 150);
     break;
   case 1:
-    motorRotate(rotation, 35, 90);
+    motorRotate(rotation, 35, 45);
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 800, 350);
+    motorMove(MOTOR_DIR_FORWARD, 800, 180);
     break;
   case 3:
-    motorRotate(!rotation, 35, 90);
+    motorRotate(!rotation, 35, 45);
 
     break;
   case 4:
-    motorMove(MOTOR_DIR_FORWARD, 1000, 300);
+    motorMove(MOTOR_DIR_FORWARD, 1000, 150);
     break;
   case 5:
-    motorRotate(!rotation, 115, 90);
+    motorRotate(!rotation, 115, 45);
     break;
   case 6:
+    motorMove(MOTOR_DIR_FORWARD, 80, 180);
+    break;
+  case 7:
     phaseDeplacement = 0;
     return 1;
     break;
@@ -536,24 +600,21 @@ int deplacementTroisiemePamis(void)
 }
 int deplacementSuperStar(void)
 {
+  float rotation; 
   static uint8_t phaseDeplacement = 0;
   switch (phaseDeplacement)
   {
   case 0:
-    motorMove(MOTOR_DIR_FORWARD, 1500, 300);
+    motorMove(MOTOR_DIR_FORWARD, 1000, 150);
     break;
   case 1:
-    if (team_yellow == team)
-    {
-      motorRotate(MOTOR_DIR_CLOCKWISE, 90, 90);
-    }
-    else
-    {
-      motorRotate(MOTOR_DIR_ANTICLOCKWISE, 90, 90);
+    rotation = 120; 
+    if (team_yellow == team ){
+      motorTurn(MOTOR_DIR_FORWARD,80.0,rotation,150); 
     }
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 250, 150);
+    motorMove(MOTOR_DIR_FORWARD, 150, 150);
     break;
   case 3:
     phaseDeplacement = 0;

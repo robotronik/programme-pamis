@@ -91,6 +91,7 @@ extern "C" void DMA1_Channel1_IRQHandler(void)
 
 static void _sendNeopixel(void)
 {
+ //   while (HAL_DMA_GetState(&hdma_timneopixel_ch1)== HAL_BUSY); 
     for (int i = (NEOPIXEL_NB + 1) * 24; i < (NEOPIXEL_NB + 1) * 24 + NEOPIXEL_RESET_TIMER_TICK; i++)
     {
         data[i] = 0;
@@ -133,7 +134,7 @@ static void _sendNeopixel(void)
 
 void neopixelClear(void)
 {
-    for (int i = 0; i < (NEOPIXEL_NB + 1) * 24; i++)
+    for (int i = 0; i < (NEOPIXEL_NB  + 1) * 24; i++)
     {
         data[i] = PWM_LOW;
     }

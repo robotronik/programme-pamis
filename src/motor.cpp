@@ -7,15 +7,13 @@
 #define MOTOR_1_READY (1 << 0)
 #define MOTOR_2_READY (1 << 1)
 
-
 typedef struct
 {
-    int nbpas;  // nb de pas total à faire
-    int accel;  // nb de pas d'accel
-    int deccel; // nbpas de decel
-    int timer;  // timer min
+  int nbpas;  // nb de pas total à faire
+  int accel;  // nb de pas d'accel
+  int deccel; // nbpas de decel
+  int timer;  // timer min
 } deplacement_t;
-
 
 // VARIABLE
 volatile int motorReady;
@@ -35,41 +33,41 @@ int motorTimerSetup(void);
 
 void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time);
 
-void motorStepper1Fallback (void){
+void motorStepper1Fallback(void)
+{
 
-    HAL_TIM_Base_Stop_IT(&htim1);
-    // Code à exécuter après 25 ms
-    LedPcbToggle();
-    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP1_Pin);
+  HAL_TIM_Base_Stop_IT(&htim1);
+  // Code à exécuter après 25 ms
+  LedPcbToggle();
+  HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP1_Pin);
 
-    stepper1.nbpas--;
-    if (stepper1.nbpas != 0)
-    {
-      MotorStartIRQTimer(&htim1, stepper1.timer);
-    }
-    else
-    {
-      motorReady |= MOTOR_1_READY;
-    }
+  stepper1.nbpas--;
+  if (stepper1.nbpas != 0)
+  {
+    MotorStartIRQTimer(&htim1, stepper1.timer);
+  }
+  else
+  {
+    motorReady |= MOTOR_1_READY;
+  }
 }
-void motorStepper2Fallback (void){
+void motorStepper2Fallback(void)
+{
 
-    HAL_TIM_Base_Stop_IT(&htim2);
+  HAL_TIM_Base_Stop_IT(&htim2);
 
-    HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP2_Pin);
+  HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP2_Pin);
 
-    stepper2.nbpas--;
-    if (stepper2.nbpas != 0)
-    {
-      MotorStartIRQTimer(&htim2, stepper2.timer);
-    }
-    else
-    {
-      motorReady |= MOTOR_2_READY;
-    }
-} 
-
-
+  stepper2.nbpas--;
+  if (stepper2.nbpas != 0)
+  {
+    MotorStartIRQTimer(&htim2, stepper2.timer);
+  }
+  else
+  {
+    motorReady |= MOTOR_2_READY;
+  }
+}
 
 void motorSetup(void)
 {
@@ -109,7 +107,7 @@ int motorTimerSetup(void)
     return 1;
   }
 
-  //HAL_TIM_Base_Start_IT(&htim1);
+  // HAL_TIM_Base_Start_IT(&htim1);
 
   htim2.Instance = TIM7;
   htim2.Init.Prescaler = MOTOR_TIMER_PRESCALER - 1;
@@ -126,14 +124,13 @@ int motorTimerSetup(void)
   {
     return 1;
   }
-  //HAL_TIM_Base_Start_IT(&htim2);
+  // HAL_TIM_Base_Start_IT(&htim2);
   NVIC_EnableIRQ(TIM6_DAC_IRQn);
   NVIC_SetPriority(TIM6_DAC_IRQn, 2);
   NVIC_EnableIRQ(TIM7_DAC_IRQn);
   NVIC_SetPriority(TIM7_DAC_IRQn, 3);
   return 0;
 }
-
 
 int motorGPIOSetup(void)
 {
@@ -165,25 +162,25 @@ void motorDisable(void)
 // en mm & mm/s
 void motorMove(int direction, float distance, float vitesse)
 {
-  distance *= 2; 
   motorReady = 0;
   if (direction == MOTOR_DIR_FORWARD)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
-  }
-  else {
-    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
   }
+  else
+  {
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
+  }
 
-  float nbpas = distance / (((DIAM_ROUE / 2.0) * 2.0 * PI) / PAS_PAR_TOUR) ;
+  float nbpas = distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
 
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
 
-  float time = (distance / vitesse) / nbpas ;
-  float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) /   MOTOR_TIMER_PRESCALER);
+  float time = (distance / vitesse) / nbpas;
+  float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer;
   stepper2.timer = timer;
@@ -193,39 +190,109 @@ void motorMove(int direction, float distance, float vitesse)
   uartprintf("config timer 2 : %d ,nbpas : %d \n", stepper2.timer, stepper2.nbpas);
 }
 // en degres et degres par seconde
-void motorRotate(int sens_horaire, float angle, float vitesse){
+void motorRotate(int sens_horaire, float angle, float vitesse)
+{
+  if (angle < 0)
+  {
+    angle = -angle;
+    sens_horaire = !sens_horaire;
+  }
 
   motorReady = 0;
-  if (sens_horaire == MOTOR_DIR_ANTICLOCKWISE)
+  if (sens_horaire == MOTOR_DIR_CLOCKWISE)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
-  }
-  else {
-    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
   }
+  else
+  {
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
+  }
 
-  float length_cercle_rotation = (DIAM_INTER_ROUE)*2.0*PI;
-  float distance = length_cercle_rotation * (angle / 360.0); 
+  float length_cercle_rotation = DIAM_INTER_ROUE * PI;
+  float distance = length_cercle_rotation * (angle / 360.0);
 
-  float nbpas = distance / (((DIAM_ROUE / 2.0) * 2.0 * PI) / PAS_PAR_TOUR) ;
+  float nbpas = distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
 
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
 
-  float time = (angle / vitesse) / nbpas ;
-  float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) /   MOTOR_TIMER_PRESCALER);
+  float time = (angle / vitesse) / nbpas;
+  float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer;
   stepper2.timer = timer;
 
   MotorStartIRQTimer(&htim1, timer);
   MotorStartIRQTimer(&htim2, timer);
- 
+
   uartprintf("config timer 2 : %d ,nbpas : %d \n", stepper2.timer, stepper2.nbpas);
 }
+// point de rotation positif : clockwise
+void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
+{
+  if (angle < 0)
+  {
+    angle = -angle;
+    direction = !direction;
+  }
+  if (PointOfRotation < DIAM_INTER_ROUE / 2 && PointOfRotation > -DIAM_INTER_ROUE / 2)
+  {
+    uartprintf("You need to hava a point of rotation at the lenght between the to wheel\n");
+    return;
+  }
+  motorReady = 0;
+  if (direction == MOTOR_DIR_FORWARD)
+  {
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
+  }
+  else
+  {
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
+  }
 
+  float length_cercle_rotation_ext = (abs(PointOfRotation) + (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
+  float distance_ext = length_cercle_rotation_ext * angle / 360.0;
+  float nbpas_ext = distance_ext / (((DIAM_ROUE)* PI) / PAS_PAR_TOUR);
+
+  float time_ext = (distance_ext / vitesse) / nbpas_ext;
+  float timer_ext = time_ext * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
+
+  float length_cercle_rotation_int = (abs(PointOfRotation - (DIAM_INTER_ROUE / 2.0))) * 2.0 * PI;
+  float distance_int = length_cercle_rotation_int * (angle / 360.0);
+  float nbpas_int = distance_int / (((DIAM_ROUE) * PI) / PAS_PAR_TOUR);
+
+  float time_int = (distance_ext / vitesse) / nbpas_int;
+  float timer_int = time_int * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
+
+  uartprintf("INT timer : %f - distance : %f  - nbpasINT %f /\n EXT timer %f - distance %f nbpasEXT : %f \n ", timer_int, distance_int, nbpas_int, timer_ext, distance_ext, nbpas_ext);
+  if (PointOfRotation < 0)
+  {
+
+    stepper1.timer = timer_ext;
+    stepper2.timer = timer_int;
+
+    stepper1.nbpas = nbpas_ext;
+    stepper2.nbpas = nbpas_int;
+    MotorStartIRQTimer(&htim1, timer_int);
+    MotorStartIRQTimer(&htim2, timer_ext);
+  }
+  {
+    stepper1.timer = timer_int;
+    stepper2.timer = timer_ext;
+
+    stepper1.nbpas = nbpas_int;
+    stepper2.nbpas = nbpas_ext;
+    MotorStartIRQTimer(&htim1, timer_ext);
+    MotorStartIRQTimer(&htim2, timer_int);
+  }
+
+  uartprintf("config timer 1 : %d ,nbpas : %d \n", stepper1.timer, stepper1.nbpas);
+  uartprintf("config timer 2 : %d ,nbpas : %d \n", stepper2.timer, stepper2.nbpas);
+}
 
 int motorIsReady(void)
 {
