@@ -39,7 +39,9 @@ void motorEnable(void);
 void motorDisable(void);
 
 void motorMove(int direction, float distance, float vitesse); // en mm & mm/s
+void motorMove(int direction, float distance, float vitesse,float accel, float deccel); // en mm & mm/s
 void motorRotate(int sens_horaire, float angle, float vitesse);  // en degres et degres par seconde
+void motorRotate(int sens_horaire, float angle, float vitesse, float accel, float deccel) ;
 void motorTurn(int direction,float angle, float PointOfRotation, float vitesse); // point de rotation positif : clockwise
 
 int motorIsReady(void);
