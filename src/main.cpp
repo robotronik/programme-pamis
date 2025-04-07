@@ -472,8 +472,7 @@ uint8_t Flash_Read(void)
 
 uint8_t deplacement(void)
 {
-  uartprintf("motorIsReady ? %d for pamis %d\n", motorIsReady(), numPamis);
-
+  // TODO modifer la fonction pour prendre en compte la msie en buffer des actions
   if (motorIsReady())
   {
     switch (numPamis)
@@ -619,12 +618,7 @@ int deplacementTroisiemePamis(void)
 int deplacementSuperStar(void)
 {
   float rotation;
-  
-  HAL_Delay(30);
   static uint8_t phaseDeplacement = 0;
-  uartprintf("step %d\n", phaseDeplacement);
-
-  HAL_Delay(30);
   switch (phaseDeplacement)
   {
   case 0:
