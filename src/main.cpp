@@ -153,7 +153,7 @@ int main(void)
   uint32_t timer_battery = millis() + 1000;
 
   GPIO_PinState oldButtonPcb = GPIO_PIN_SET;
-  bool wait85s = true ; 
+  bool wait85s = true;
   // LOOP
   while (1)
   {
@@ -197,15 +197,16 @@ int main(void)
       if (ButtonPcbGetValue() == GPIO_PIN_RESET && oldButtonPcb == GPIO_PIN_SET)
       {
         timer_button = millis();
-        uartprintf ("timer button : %d\n", timer_button);
+        uartprintf("timer button : %d\n", timer_button);
       }
       if (ButtonPcbGetValue() == GPIO_PIN_SET && oldButtonPcb == GPIO_PIN_RESET)
       {
         if (millis() > timer_button + 500)
         {
-          wait85s = !wait85s; 
-          neopixelSetLed(0,(colorRGB_t){0,255,0});
+          wait85s = !wait85s;
+          neopixelSetLed(0, (colorRGB_t){0, 255, 0});
           uartprintf("PAMIS il ne veux pas attendre ^^'\n");
+          HAL_Delay(50);
         }
         else
         {
@@ -304,11 +305,11 @@ int main(void)
       {
         // le match vient de démarrer
         uartprintf("Pami wait, the match is started\n");
-        timer = millis() + (wait85s == true? 85000 : 1000); // TODO set correct value 85000
+        timer = millis() + (wait85s == true ? 85000 : 1000); // TODO set correct value 85000
 
         state_machine = state_wait;
       }
- 
+
       break;
     case state_wait:
       if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
@@ -372,8 +373,8 @@ int main(void)
     default:
       state_machine = state_error;
     }
-  // fin LOOP
-  oldButtonPcb = ButtonPcbGetValue();
+    // fin LOOP
+    oldButtonPcb = ButtonPcbGetValue();
   }
 }
 
@@ -409,9 +410,14 @@ void debugfun(void)
       uartprintf("level batt : %f\n", battGetPourcentage());
       motorEnable();
 
-      motorMove(MOTOR_DIR_FORWARD, 2000, 300, 60, 60);
-      while (motorIsReady() == 0)
+      motorRotate(MOTOR_DIR_ANTICLOCKWISE, 180, 90, 180, 180);
+      motorRotate(MOTOR_DIR_CLOCKWISE, 180, 90, 180, 180);
+      motorRotate(MOTOR_DIR_ANTICLOCKWISE, 180, 90, 180, 0);
+      motorRotate(MOTOR_DIR_ANTICLOCKWISE, 180, 90, 0, 180);
+
+      while (!motorIsReady())
         ;
+
       motorDisable();
       for (int i = 0; i < 1; i++)
       {
@@ -466,7 +472,7 @@ uint8_t Flash_Read(void)
 
 uint8_t deplacement(void)
 {
-  static uint32_t timer = 0;
+  uartprintf("motorIsReady ? %d for pamis %d\n", motorIsReady(), numPamis);
 
   if (motorIsReady())
   {
@@ -609,10 +615,16 @@ int deplacementTroisiemePamis(void)
   phaseDeplacement++;
   return 0;
 }
+
 int deplacementSuperStar(void)
 {
   float rotation;
+  
+  HAL_Delay(30);
   static uint8_t phaseDeplacement = 0;
+  uartprintf("step %d\n", phaseDeplacement);
+
+  HAL_Delay(30);
   switch (phaseDeplacement)
   {
   case 0:
@@ -642,4 +654,5 @@ int deplacementSuperStar(void)
     break;
   }
   phaseDeplacement++;
+  return 0;
 }

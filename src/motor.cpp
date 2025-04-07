@@ -2,6 +2,7 @@
 #include <math.h>
 #include "system.h"
 #include "ledButtonPcb.h"
+#include "fifo.h"
 #include "uart.h"
 
 #define MOTOR_1_READY (1 << 0)
@@ -14,14 +15,38 @@ typedef struct
   unsigned int accel;  // nb de pas d'accel
   unsigned int deccel; // nbpas de decel
   unsigned int timer;  // timer min
-} deplacement_t;
+} step_t;
 
-enum TYPE_DEPLACEMENT
+
+
+
+typedef struct
 {
-  DEPLACEMENT_LINE,
-  DEPLACEMENT_ROTATION,
-  DEPLACEMENT_TURN
-};
+  int direction;
+  float distance;
+  float vitesse;
+  float accel;
+  float deccel;
+} mvt_linear_t;
+
+typedef struct
+{
+  int sens_horaire;
+  float angle;
+  float vitesse;
+  float accel;
+  float deccel;
+} mvt_rotation_t;
+
+typedef struct
+{
+  int direction;
+  float angle;
+  float vitesse;
+  float pointOfRotation;
+  float accel;
+  float deccel;
+} mvt_turn_t;
 
 typedef struct
 {
@@ -36,14 +61,26 @@ volatile uint32_t nbStep2;
 volatile uint32_t dir1;
 volatile uint32_t dir2;
 
-volatile deplacement_t stepper1;
-volatile deplacement_t stepper2;
+volatile step_t stepper1;
+volatile step_t stepper2;
 // TIMER
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
+Fifo *actionBuffer;
+
 int motorGPIOSetup(void);
 int motorTimerSetup(void);
+
+
+void motorQueue(mvt_t mvt);
+void motorExecute(mvt_t mvt);
+void motorCheckBuffer();
+mvt_t mvt_copy(mvt_t original);
+
+void motorExecuteLine(mvt_linear_t mvt);
+void motorExecuteRotate(mvt_rotation_t mvt);
+void motorExecuteTurn(mvt_turn_t mvt);
 
 void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time);
 
@@ -80,6 +117,8 @@ void motorStepper1Fallback(void)
   else
   {
     motorReady |= MOTOR_1_READY;
+    if (motorIsReady())
+      motorCheckBuffer();
   }
 }
 void motorStepper2Fallback(void)
@@ -115,6 +154,8 @@ void motorStepper2Fallback(void)
   else
   {
     motorReady |= MOTOR_2_READY;
+    if (motorIsReady())
+      motorCheckBuffer();
   }
 }
 
@@ -129,6 +170,7 @@ void motorSetup(void)
     Error_Handler();
   }
   motorDisable();
+  actionBuffer = fifo_init();
   motorReady = MOTOR_1_READY | MOTOR_2_READY;
 }
 
@@ -208,12 +250,205 @@ void motorDisable(void)
 {
   HAL_GPIO_WritePin(MOTOR_Port, MOTOR_ENABLE_Pin, GPIO_PIN_SET);
 }
+
+
+void motorPause(void){
+  HAL_TIM_Base_Stop_IT (&htim1);
+  HAL_TIM_Base_Stop_IT (&htim2);
+}
+void motorResume(void){
+  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim2);
+}
+
+void motorStop (void){
+  motorPause();
+  while (!fifo_isEmpty(actionBuffer))
+  {
+    fifo_dequeue(actionBuffer);
+  }
+  motorReady = MOTOR_1_READY | MOTOR_2_READY;
+  
+}
+
 // en mm & mm/s
 void motorMove(int direction, float distance, float vitesse)
 {
   motorMove(direction, distance, vitesse, 0, 0);
 }
 void motorMove(int direction, float distance, float vitesse, float accel, float deccel)
+{
+
+  mvt_linear_t deplacement;
+  deplacement.accel = 0;
+  deplacement.deccel = 0;
+  deplacement.direction = direction;
+  deplacement.vitesse = vitesse;
+  deplacement.distance = distance;
+
+  mvt_t mvt = {DEPLACEMENT_LINE, (void *)&deplacement};
+  motorQueue(mvt);
+}
+
+//  en degres et degres par seconde
+void motorRotate(int sens_horaire, float angle, float vitesse)
+{
+  motorRotate(sens_horaire, angle, vitesse, 0, 0);
+}
+
+void motorRotate(int sens_horaire, float angle, float vitesse, float accel, float deccel)
+{
+  mvt_rotation_t deplacement;
+  deplacement.accel = 0;
+  deplacement.deccel = 0;
+  deplacement.sens_horaire = sens_horaire;
+  deplacement.vitesse = vitesse;
+  deplacement.angle = angle;
+
+  mvt_t mvt = {DEPLACEMENT_ROTATION, (void *)&deplacement};
+  motorQueue(mvt);
+}
+
+
+// point de rotation positif : clockwise
+void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
+{
+  mvt_turn_t deplacement;
+  deplacement.accel = 0;
+  deplacement.deccel = 0;
+  deplacement.direction = direction;
+  deplacement.vitesse = vitesse;
+  deplacement.pointOfRotation = PointOfRotation;
+  deplacement.angle = angle;
+
+  mvt_t mvt = {DEPLACEMENT_TURN, (void *)&deplacement};
+  motorQueue(mvt);
+}
+
+int motorIsReady(void)
+{
+  return (motorReady == (MOTOR_1_READY | MOTOR_2_READY));
+}
+
+/**
+ * @brief This function handles TIM6 global interrupt, DAC1 and DAC3 channel underrun error interrupts.
+ */
+extern "C" void TIM6_DAC_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim1);
+}
+
+/**
+ * @brief This function handles TIM7 global interrupt.
+ */
+extern "C" void TIM7_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim2);
+}
+
+void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time)
+{
+  __HAL_TIM_SET_AUTORELOAD(htim, time);
+  __HAL_TIM_SET_COUNTER(htim, 0);
+  HAL_TIM_Base_Start_IT(htim);
+}
+
+void motorCheckBuffer()
+{
+  if (motorIsReady() && !fifo_isEmpty(actionBuffer))
+  {
+    uartprintf("Passe à l'action suivante \n");
+    mvt_t next = fifo_dequeue(actionBuffer);
+    motorExecute(next);
+  }
+}
+
+void *copy_data(const void *data, size_t size)
+{
+  if (data == NULL || size == 0)
+  {
+    return NULL;
+  }
+
+  void *copy = malloc(size);
+  if (copy == NULL)
+  {
+    return NULL; // allocation échouée
+  }
+
+  memcpy(copy, data, size);
+  return copy;
+}
+
+mvt_t mvt_copy(mvt_t original)
+{
+  mvt_t copy;
+  copy.type = original.type;
+  switch (original.type)
+  {
+  case DEPLACEMENT_LINE:
+    copy.deplacement = copy_data(original.deplacement, sizeof(mvt_linear_t));
+    break;
+  case DEPLACEMENT_ROTATION:
+    copy.deplacement = copy_data(original.deplacement, sizeof(mvt_rotation_t));
+    break;
+  case DEPLACEMENT_TURN:
+    copy.deplacement = copy_data(original.deplacement, sizeof(mvt_turn_t));
+    break;
+  case DEPLACEMENT_NULL:
+    copy.deplacement = NULL;
+    break;
+  default:
+    Error_Handler();
+  }
+
+  return copy;
+}
+
+void motorQueue(mvt_t mvt)
+{
+
+  fifo_enqueue(actionBuffer, mvt_copy(mvt));
+  uartprintf("lenght buffer : %d \n", fifo_length(actionBuffer));
+  motorCheckBuffer(); // Permet d'exécuter si moteur déjà prêt
+}
+
+void motorExecute(mvt_t mvt)
+{
+  switch (mvt.type)
+  {
+  case DEPLACEMENT_LINE:
+  {
+    mvt_linear_t *d = (mvt_linear_t *)mvt.deplacement;
+    motorExecuteLine(*d);
+    free(mvt.deplacement);
+    break;
+  }
+  case DEPLACEMENT_ROTATION:
+  {
+    mvt_rotation_t *r = (mvt_rotation_t *)mvt.deplacement;
+    motorExecuteRotate(*r);
+
+    free(mvt.deplacement);
+    break;
+  }
+  case DEPLACEMENT_TURN:
+  {
+    mvt_turn_t *t = (mvt_turn_t *)mvt.deplacement;
+    motorExecuteTurn(*t);
+
+    free(mvt.deplacement);
+    break;
+  }
+  case DEPLACEMENT_NULL:
+  default:
+    break;
+  }
+}
+
+
+
+void motorExecuteLine(mvt_linear_t mvt)
 {
   uint32_t timeout = HAL_GetTick();
   while (!motorIsReady())
@@ -226,7 +461,7 @@ void motorMove(int direction, float distance, float vitesse, float accel, float 
   }
   motorReady = 0;
 
-  if (direction == MOTOR_DIR_FORWARD)
+  if (mvt.direction == MOTOR_DIR_FORWARD)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
@@ -237,11 +472,11 @@ void motorMove(int direction, float distance, float vitesse, float accel, float 
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
   }
 
-  float nbpas = distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
+  float nbpas = mvt.distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
 
-  float t_min = 1.0f / (vitesse / ((DIAM_ROUE * PI) / PAS_PAR_TOUR)); // temps min entre deux pas
+  float t_min = 1.0f / (mvt.vitesse / ((DIAM_ROUE * PI) / PAS_PAR_TOUR)); // temps min entre deux pas
   uint32_t timer_min = t_min * ((MOTOR_CLOCK_TIMER * 1000000.0f) / MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer_min;
@@ -251,8 +486,8 @@ void motorMove(int direction, float distance, float vitesse, float accel, float 
   stepper2.nbpasactuel = 0;
 
   // Calcul des zones d'accel/deccel (en pas)
-  uint32_t accel_steps = (uint32_t)((vitesse * vitesse) / (2.0f * accel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
-  uint32_t deccel_steps = (uint32_t)((vitesse * vitesse) / (2.0f * deccel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
+  uint32_t accel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.accel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
+  uint32_t deccel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.deccel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
 
   if ((accel_steps + deccel_steps) >= nbpas)
   {
@@ -268,18 +503,12 @@ void motorMove(int direction, float distance, float vitesse, float accel, float 
 
   MotorStartIRQTimer(&htim1, timer_min + 2000); // Démarrage lent pour phase d'accel
   MotorStartIRQTimer(&htim2, timer_min + 2000);
-
-  uartprintf("Timer min : %d, Pas: %d, Accel: %d, Deccel: %d\n", timer_min, (int)nbpas, accel_steps, deccel_steps);
 }
 
-//  en degres et degres par seconde
-void motorRotate(int sens_horaire, float angle, float vitesse)
-{
-  motorRotate(sens_horaire, angle, vitesse, 0, 0);
-}
 
-void motorRotate(int sens_horaire, float angle, float vitesse, float accel, float deccel)
+void motorExecuteRotate(mvt_rotation_t mvt)
 {
+
   uint32_t timeout = HAL_GetTick();
   while (!motorIsReady())
   {
@@ -289,15 +518,15 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
       break;
     }
   }
-  if (angle < 0)
+  if (mvt.angle < 0)
   {
-    angle = -angle;
-    sens_horaire = !sens_horaire;
+    mvt.angle = -mvt.angle;
+    mvt.sens_horaire = !mvt.sens_horaire;
   }
 
   motorReady = 0;
 
-  if (sens_horaire == MOTOR_DIR_CLOCKWISE)
+  if (mvt.sens_horaire == MOTOR_DIR_CLOCKWISE)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
@@ -309,7 +538,7 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
   }
 
   float length_cercle_rotation = DIAM_INTER_ROUE * PI;
-  float distance = length_cercle_rotation * (angle / 360.0f);
+  float distance = length_cercle_rotation * (mvt.angle / 360.0f);
   float nbpas = distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
 
   if (nbpas <= 0)
@@ -319,7 +548,7 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
   stepper2.nbpas = nbpas;
 
   // Calcule du temps par pas
-  float time = (angle / vitesse) / nbpas;
+  float time = (mvt.angle / mvt.vitesse) / nbpas;
   float timer = time * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer;
@@ -329,8 +558,8 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
   stepper2.nbpasactuel = 0;
 
   // Gestion accélération / décélération
-  uint16_t accelSteps = (uint16_t)(nbpas * accel);
-  uint16_t deccelSteps = (uint16_t)(nbpas * deccel);
+  uint16_t accelSteps = (uint16_t)(nbpas * mvt.accel);
+  uint16_t deccelSteps = (uint16_t)(nbpas * mvt.deccel);
 
   // On s'assure qu'on dépasse pas le nombre total de pas
   if (accelSteps + deccelSteps > nbpas)
@@ -346,12 +575,9 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
 
   MotorStartIRQTimer(&htim1, timer);
   MotorStartIRQTimer(&htim2, timer);
-
-  uartprintf("config timer 2 : %d ,nbpas : %d \n", stepper2.timer, stepper2.nbpas);
 }
 
-// point de rotation positif : clockwise
-void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
+void motorExecuteTurn(mvt_turn_t mvt)
 {
   uint32_t timeout = HAL_GetTick();
   while (!motorIsReady())
@@ -362,18 +588,18 @@ void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
       break;
     }
   }
-  if (angle < 0)
+  if (mvt.angle < 0)
   {
-    angle = -angle;
-    direction = !direction;
+    mvt.angle = -mvt.angle;
+    mvt.direction = !mvt.direction;
   }
-  if (PointOfRotation < DIAM_INTER_ROUE / 2 && PointOfRotation > -DIAM_INTER_ROUE / 2)
+  if (mvt.pointOfRotation < DIAM_INTER_ROUE / 2 && mvt.pointOfRotation > -DIAM_INTER_ROUE / 2)
   {
     uartprintf("You need to hava a point of rotation at the lenght between the to wheel\n");
     return;
   }
   motorReady = 0;
-  if (direction == MOTOR_DIR_FORWARD)
+  if (mvt.direction == MOTOR_DIR_FORWARD)
   {
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR1_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_RESET);
@@ -384,22 +610,22 @@ void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
   }
 
-  float length_cercle_rotation_ext = (abs(PointOfRotation) + (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
-  float distance_ext = length_cercle_rotation_ext * angle / 360.0;
+  float length_cercle_rotation_ext = (abs(mvt.pointOfRotation) + (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
+  float distance_ext = length_cercle_rotation_ext * mvt.angle / 360.0;
   float nbpas_ext = distance_ext / (((DIAM_ROUE)*PI) / PAS_PAR_TOUR);
 
-  float time_ext = (distance_ext / vitesse) / nbpas_ext;
+  float time_ext = (distance_ext / mvt.vitesse) / nbpas_ext;
   float timer_ext = time_ext * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
-  float length_cercle_rotation_int = (abs(PointOfRotation) - (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
-  float distance_int = length_cercle_rotation_int * (angle / 360.0);
+  float length_cercle_rotation_int = (abs(mvt.pointOfRotation) - (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
+  float distance_int = length_cercle_rotation_int * (mvt.angle / 360.0);
   float nbpas_int = distance_int / (((DIAM_ROUE)*PI) / PAS_PAR_TOUR);
 
-  float time_int = (distance_ext / vitesse) / nbpas_int;
+  float time_int = (distance_ext / mvt.vitesse) / nbpas_int;
   float timer_int = time_int * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
   uartprintf("INT timer : %f - distance : %f  - nbpasINT %f /\n EXT timer %f - distance %f nbpasEXT : %f \n ", timer_int, distance_int, nbpas_int, timer_ext, distance_ext, nbpas_ext);
-  if (PointOfRotation < 0)
+  if (mvt.pointOfRotation < 0)
   {
     uartprintf("motor turn anticlowkwise");
 
@@ -440,35 +666,6 @@ void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
     MotorStartIRQTimer(&htim1, timer_int);
     MotorStartIRQTimer(&htim2, timer_ext);
   }
-
   uartprintf("config timer 1 : %d ,nbpas : %d \n", stepper1.timer, stepper1.nbpas);
   uartprintf("config timer 2 : %d ,nbpas : %d \n", stepper2.timer, stepper2.nbpas);
-}
-
-int motorIsReady(void)
-{
-  return (motorReady == (MOTOR_1_READY | MOTOR_2_READY));
-}
-
-/**
- * @brief This function handles TIM6 global interrupt, DAC1 and DAC3 channel underrun error interrupts.
- */
-extern "C" void TIM6_DAC_IRQHandler(void)
-{
-  HAL_TIM_IRQHandler(&htim1);
-}
-
-/**
- * @brief This function handles TIM7 global interrupt.
- */
-extern "C" void TIM7_IRQHandler(void)
-{
-  HAL_TIM_IRQHandler(&htim2);
-}
-
-void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time)
-{
-  __HAL_TIM_SET_AUTORELOAD(htim, time);
-  __HAL_TIM_SET_COUNTER(htim, 0);
-  HAL_TIM_Base_Start_IT(htim);
 }
