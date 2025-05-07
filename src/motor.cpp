@@ -8,6 +8,7 @@
 #define MOTOR_1_READY (1 << 0)
 #define MOTOR_2_READY (1 << 1)
 
+
 typedef struct
 {
   unsigned int nbpas; // nb de pas total à faire
@@ -16,9 +17,6 @@ typedef struct
   unsigned int deccel; // nbpas de decel
   unsigned int timer;  // timer min
 } step_t;
-
-
-
 
 typedef struct
 {
@@ -67,11 +65,14 @@ volatile step_t stepper2;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
+static float stepDistance_mm = 0.0f;
+
 Fifo *actionBuffer;
+
+volatile pami_position_t currentPosition = {0.0f, 0.0f, 0.0f};
 
 int motorGPIOSetup(void);
 int motorTimerSetup(void);
-
 
 void motorQueue(mvt_t mvt);
 void motorExecute(mvt_t mvt);
@@ -82,6 +83,8 @@ void motorExecuteLine(mvt_linear_t mvt);
 void motorExecuteRotate(mvt_rotation_t mvt);
 void motorExecuteTurn(mvt_turn_t mvt);
 
+static void motorUpdatePosition(float deltaLeft, float deltaRight);
+
 void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time);
 
 void motorStepper1Fallback(void)
@@ -89,6 +92,16 @@ void motorStepper1Fallback(void)
   HAL_TIM_Base_Stop_IT(&htim1);
   HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP1_Pin);
   stepper1.nbpasactuel++;
+
+  // update pos
+  if (HAL_GPIO_ReadPin(MOTOR_Port, MOTOR_DIR1_Pin) == GPIO_PIN_RESET)
+  {
+    motorUpdatePosition(0.0f, -stepDistance_mm);
+  }
+  else
+  {
+    motorUpdatePosition(0.0f, stepDistance_mm);
+  }
 
   if (stepper1.nbpasactuel < stepper1.nbpas)
   {
@@ -126,6 +139,16 @@ void motorStepper2Fallback(void)
   HAL_TIM_Base_Stop_IT(&htim2);
   HAL_GPIO_TogglePin(MOTOR_Port, MOTOR_STEP2_Pin);
   stepper2.nbpasactuel++;
+
+  // update pos
+  if (HAL_GPIO_ReadPin(MOTOR_Port, MOTOR_DIR2_Pin) == GPIO_PIN_RESET)
+  {
+    motorUpdatePosition(stepDistance_mm, 0.0f);
+  }
+  else
+  {
+    motorUpdatePosition(-stepDistance_mm, 0.0f);
+  }
 
   if (stepper2.nbpasactuel < stepper2.nbpas)
   {
@@ -171,6 +194,9 @@ void motorSetup(void)
   }
   motorDisable();
   actionBuffer = fifo_init();
+  stepDistance_mm = (DIAM_ROUE * M_PI) / PAS_PAR_TOUR;
+  // stepDistance_mm *= 1000;
+
   motorReady = MOTOR_1_READY | MOTOR_2_READY;
 }
 
@@ -251,24 +277,25 @@ void motorDisable(void)
   HAL_GPIO_WritePin(MOTOR_Port, MOTOR_ENABLE_Pin, GPIO_PIN_SET);
 }
 
-
-void motorPause(void){
-  HAL_TIM_Base_Stop_IT (&htim1);
-  HAL_TIM_Base_Stop_IT (&htim2);
+void motorPause(void)
+{
+  HAL_TIM_Base_Stop_IT(&htim1);
+  HAL_TIM_Base_Stop_IT(&htim2);
 }
-void motorResume(void){
+void motorResume(void)
+{
   HAL_TIM_Base_Start_IT(&htim1);
   HAL_TIM_Base_Start_IT(&htim2);
 }
 
-void motorStop (void){
+void motorStop(void)
+{
   motorPause();
   while (!fifo_isEmpty(actionBuffer))
   {
     fifo_dequeue(actionBuffer);
   }
   motorReady = MOTOR_1_READY | MOTOR_2_READY;
-  
 }
 
 // en mm & mm/s
@@ -308,7 +335,6 @@ void motorRotate(int sens_horaire, float angle, float vitesse, float accel, floa
   mvt_t mvt = {DEPLACEMENT_ROTATION, (void *)&deplacement};
   motorQueue(mvt);
 }
-
 
 // point de rotation positif : clockwise
 void motorTurn(int direction, float angle, float PointOfRotation, float vitesse)
@@ -353,6 +379,51 @@ void MotorStartIRQTimer(TIM_HandleTypeDef *htim, uint16_t time)
   HAL_TIM_Base_Start_IT(htim);
 }
 
+void motorResetPosition(void)
+{
+  currentPosition.x = 0.0f;
+  currentPosition.y = 0.0f;
+  currentPosition.theta = 0.0f;
+}
+
+void motorSetPosition(pami_position_t pos)
+{
+  currentPosition.x = pos.x;
+  currentPosition.y = pos.y;
+  currentPosition.theta = pos.theta;
+}
+
+pami_position_t motorGetPosition(void)
+{
+  pami_position_t pos;
+  pos.x = currentPosition.x;
+  pos.y = currentPosition.y;
+  pos.theta = currentPosition.theta;
+  return pos;
+}
+
+static void motorUpdatePosition(float deltaLeft, float deltaRight)
+{
+  static float Left = 0; 
+  static float Right = 0 ; 
+
+  Left += deltaLeft; 
+  Right += deltaRight; 
+
+  //uartprintf(">left:%f\n>Right:%f\n",Left,Right);
+
+  float dCenter = (deltaRight + deltaLeft) / 2.0f;
+  float dTheta = (deltaRight - deltaLeft) / DIAM_INTER_ROUE;
+
+  currentPosition.theta += dTheta;
+  if (currentPosition.theta >= 2 *  M_PI) currentPosition.theta -= 2 * M_PI;
+  if (currentPosition.theta < 0) currentPosition.theta += 2 * M_PI;
+
+  currentPosition.x += dCenter * cosf(currentPosition.theta);
+  currentPosition.y += dCenter * sinf(currentPosition.theta);
+   
+}
+
 void motorCheckBuffer()
 {
   if (motorIsReady() && !fifo_isEmpty(actionBuffer))
@@ -373,7 +444,7 @@ void *copy_data(const void *data, size_t size)
   void *copy = malloc(size);
   if (copy == NULL)
   {
-    return NULL; // allocation échouée
+    Error_Handler();
   }
 
   memcpy(copy, data, size);
@@ -384,6 +455,11 @@ mvt_t mvt_copy(mvt_t original)
 {
   mvt_t copy;
   copy.type = original.type;
+  if (original.deplacement == NULL)
+  {
+    copy.deplacement = NULL;
+    return copy;
+  }
   switch (original.type)
   {
   case DEPLACEMENT_LINE:
@@ -446,8 +522,6 @@ void motorExecute(mvt_t mvt)
   }
 }
 
-
-
 void motorExecuteLine(mvt_linear_t mvt)
 {
   uint32_t timeout = HAL_GetTick();
@@ -472,11 +546,11 @@ void motorExecuteLine(mvt_linear_t mvt)
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
   }
 
-  float nbpas = mvt.distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
+  float nbpas = mvt.distance / ((DIAM_ROUE * M_PI) / PAS_PAR_TOUR);
   stepper1.nbpas = nbpas;
   stepper2.nbpas = nbpas;
 
-  float t_min = 1.0f / (mvt.vitesse / ((DIAM_ROUE * PI) / PAS_PAR_TOUR)); // temps min entre deux pas
+  float t_min = 1.0f / (mvt.vitesse / ((DIAM_ROUE * M_PI) / PAS_PAR_TOUR)); // temps min entre deux pas
   uint32_t timer_min = t_min * ((MOTOR_CLOCK_TIMER * 1000000.0f) / MOTOR_TIMER_PRESCALER);
 
   stepper1.timer = timer_min;
@@ -486,8 +560,8 @@ void motorExecuteLine(mvt_linear_t mvt)
   stepper2.nbpasactuel = 0;
 
   // Calcul des zones d'accel/deccel (en pas)
-  uint32_t accel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.accel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
-  uint32_t deccel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.deccel * ((DIAM_ROUE * PI) / PAS_PAR_TOUR)));
+  uint32_t accel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.accel * ((DIAM_ROUE * M_PI) / PAS_PAR_TOUR)));
+  uint32_t deccel_steps = (uint32_t)((mvt.vitesse * mvt.vitesse) / (2.0f * mvt.deccel * ((DIAM_ROUE * M_PI) / PAS_PAR_TOUR)));
 
   if ((accel_steps + deccel_steps) >= nbpas)
   {
@@ -504,7 +578,6 @@ void motorExecuteLine(mvt_linear_t mvt)
   MotorStartIRQTimer(&htim1, timer_min + 2000); // Démarrage lent pour phase d'accel
   MotorStartIRQTimer(&htim2, timer_min + 2000);
 }
-
 
 void motorExecuteRotate(mvt_rotation_t mvt)
 {
@@ -537,9 +610,9 @@ void motorExecuteRotate(mvt_rotation_t mvt)
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
   }
 
-  float length_cercle_rotation = DIAM_INTER_ROUE * PI;
+  float length_cercle_rotation = DIAM_INTER_ROUE * M_PI;
   float distance = length_cercle_rotation * (mvt.angle / 360.0f);
-  float nbpas = distance / ((DIAM_ROUE * PI) / PAS_PAR_TOUR);
+  float nbpas = distance / ((DIAM_ROUE * M_PI) / PAS_PAR_TOUR);
 
   if (nbpas <= 0)
     return;
@@ -610,16 +683,16 @@ void motorExecuteTurn(mvt_turn_t mvt)
     HAL_GPIO_WritePin(MOTOR_Port, MOTOR_DIR2_Pin, GPIO_PIN_SET);
   }
 
-  float length_cercle_rotation_ext = (abs(mvt.pointOfRotation) + (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
+  float length_cercle_rotation_ext = (abs(mvt.pointOfRotation) + (DIAM_INTER_ROUE / 2.0)) * 2.0 * M_PI;
   float distance_ext = length_cercle_rotation_ext * mvt.angle / 360.0;
-  float nbpas_ext = distance_ext / (((DIAM_ROUE)*PI) / PAS_PAR_TOUR);
+  float nbpas_ext = distance_ext / (((DIAM_ROUE)*M_PI) / PAS_PAR_TOUR);
 
   float time_ext = (distance_ext / mvt.vitesse) / nbpas_ext;
   float timer_ext = time_ext * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);
 
-  float length_cercle_rotation_int = (abs(mvt.pointOfRotation) - (DIAM_INTER_ROUE / 2.0)) * 2.0 * PI;
+  float length_cercle_rotation_int = (abs(mvt.pointOfRotation) - (DIAM_INTER_ROUE / 2.0)) * 2.0 * M_PI;
   float distance_int = length_cercle_rotation_int * (mvt.angle / 360.0);
-  float nbpas_int = distance_int / (((DIAM_ROUE)*PI) / PAS_PAR_TOUR);
+  float nbpas_int = distance_int / (((DIAM_ROUE)*M_PI) / PAS_PAR_TOUR);
 
   float time_int = (distance_ext / mvt.vitesse) / nbpas_int;
   float timer_int = time_int * ((MOTOR_CLOCK_TIMER * 1000000) / MOTOR_TIMER_PRESCALER);

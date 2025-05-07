@@ -36,6 +36,15 @@
 #define MOTOR_DIR_ANTICLOCKWISE 0
 
 
+
+typedef struct {
+  float x; 
+  float y; 
+  float theta; 
+}pami_position_t; 
+
+
+
 void motorSetup(void);
 
 void motorEnable(void);
@@ -55,6 +64,12 @@ int motorIsReady(void);
 //do not use : only for other module 
 void motorStepper1Fallback(void);
 void motorStepper2Fallback(void);
+
+
+void motorResetPosition(void);
+void motorSetPosition(pami_position_t pos);
+pami_position_t motorGetPosition(void);
+
 
 enum TYPE_DEPLACEMENT
 {
