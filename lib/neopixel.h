@@ -40,12 +40,23 @@ typedef struct
     float V;
 } colorHSV_t;
 
+typedef enum {
+    FORMAT_GRB,
+    FORMAT_RGB,
+    FORMAT_RGBW
+} ledFormat_t;
+
+
 colorHSV_t RGB_to_HSV(colorRGB_t rgb);
 colorRGBA_t HSV_to_RGBA(colorHSV_t hsv);
 colorRGB_t HSV_to_RGB(colorHSV_t hsv);
 colorRGB_t RGBA_to_RGB(colorRGBA_t rgba);
 
 void neopixelSetup(void);
+void neopixelSetFormat(uint16_t ledIndex, ledFormat_t format) ;
+
+
+static void neopixelWaitForIdle(void) ;
 
 void neopixelSetLed(uint16_t numLed, colorRGB_t color);
 void neopixelSetLed(uint16_t numLed, colorRGBA_t color);

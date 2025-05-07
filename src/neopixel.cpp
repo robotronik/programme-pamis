@@ -4,14 +4,48 @@
 #define PWM_HI 70
 #define PWM_LOW 35
 
-#define NB_BYTES ((NEOPIXEL_NB + 1) * 24 + NEOPIXEL_RESET_TIMER_TICK)
+
+static uint32_t dataBuffer[2048]; // suffisant pour ~64 LEDs en RGBW
+static ledFormat_t ledFormats[NEOPIXEL_NB + 1];  // +1 pour la LED de statut
+static uint32_t* data = dataBuffer;
+static size_t totalBits = 0;
+
 
 TIM_HandleTypeDef htimneopixel;
 DMA_HandleTypeDef hdma_timneopixel_ch1;
 
 volatile uint8_t datasentflag;
 
-uint32_t data[NB_BYTES];
+static void neopixelWaitForIdle(void) {
+    uint32_t timeout = HAL_GetTick();
+    while (!datasentflag) {
+        if (HAL_GetTick() - timeout > 100) {
+            uartprintf("Timeout : Attente DMA\n");
+            Error_Handler();
+        }
+    }
+}
+
+
+uint8_t getBitsPerLed(ledFormat_t fmt) {
+    switch (fmt) {
+        case FORMAT_RGB:
+        case FORMAT_GRB:
+            return 24;
+        case FORMAT_RGBW:
+            return 32;
+        default:
+            return 24;
+    }
+}
+
+
+void neopixelSetFormat(uint16_t ledIndex, ledFormat_t format) {
+    if (ledIndex < NEOPIXEL_NB + 1) {
+        ledFormats[ledIndex] = format;
+    }
+}
+
 
 void neopixelSetup(void)
 {
@@ -118,7 +152,13 @@ static void _sendNeopixel(void)
         uartprintf("DMA1_Channel1 n'est pas prêt !\n");
         Error_Handler();
     }
-    HAL_StatusTypeDef status = HAL_TIM_PWM_Start_DMA(&htimneopixel, TIM_CHANNEL_1, data, NB_BYTES);
+
+    for (size_t i = totalBits; i < totalBits + NEOPIXEL_RESET_TIMER_TICK; i++) {
+        data[i] = 0;
+    }
+    
+    HAL_StatusTypeDef status = HAL_TIM_PWM_Start_DMA(&htimneopixel, TIM_CHANNEL_1, data, totalBits + NEOPIXEL_RESET_TIMER_TICK);
+    
 
     if (status != HAL_OK)
     {
@@ -158,50 +198,79 @@ void neopixelSetLed(uint16_t numLed, colorHSV_t color)
     neopixelSetMoreLeds(numLed, &colorRGB, 1);
 }
 
-void __writeData(uint16_t indx, uint32_t col)
-{
-    indx = indx * 24;
-    for (int i = 23; i >= 0; i--)
-    {
-        if (col & (1 << i))
-        {
-            data[indx] = PWM_HI;
-        }
-
-        else
-        {
-            data[indx] = PWM_LOW;
-        }
-        indx++;
+uint32_t getColorValue(colorRGB_t color, ledFormat_t fmt) {
+    switch (fmt) {
+        case FORMAT_RGB:
+            return (color.red << 16) | (color.green << 8) | color.blue;
+        case FORMAT_GRB:
+            return (color.green << 16) | (color.red << 8) | color.blue;
+        case FORMAT_RGBW:
+            // On peut faire une conversion simple : prendre le minimum des trois canaux comme blanc, soustraire aux autres
+            {
+                uint8_t w = fminf(fminf(color.red, color.green), color.blue);
+                uint8_t r = color.red - w;
+                uint8_t g = color.green - w;
+                uint8_t b = color.blue - w;
+                return (g << 24) | (r << 16) | (b << 8) | w;
+            }
+        default:
+            return (color.green << 16) | (color.red << 8) | color.blue;
     }
 }
 
+
+static void writeBitsToBuffer(size_t startBitIndex, uint32_t colorValue, uint8_t numBits) {
+    for (int i = numBits - 1; i >= 0; i--) {
+        size_t index = startBitIndex + (numBits - 1 - i);
+        data[index] = (colorValue & (1 << i)) ? PWM_HI : PWM_LOW;
+    }
+}
+
+
 void neopixelSetMoreLeds(uint16_t firstled, colorRGB_t color[], size_t size)
 {
-    for (uint16_t j = 0; j < size; j++)
-    {
-        uint32_t col = color[j].green << 16 | color[j].red << 8 | color[j].blue;
-        __writeData(j + firstled, col);
+    neopixelWaitForIdle();
+    totalBits = 0;
+    for (uint16_t j = 0; j < size; j++) {
+        uint16_t ledIndex = j + firstled;
+        ledFormat_t fmt = ledFormats[ledIndex];
+
+        uint32_t col = getColorValue(color[j], fmt);
+        uint8_t bits = getBitsPerLed(fmt);
+        writeBitsToBuffer(totalBits, col, bits);
+        totalBits += bits;
     }
     _sendNeopixel();
 }
 void neopixelSetMoreLeds(uint16_t firstled, colorHSV_t color[], size_t size)
 {
-    for (uint16_t j = 0; j < size; j++)
-    {
-        colorRGB_t RGB = HSV_to_RGB(color[j]);
-        uint32_t col = RGB.green << 16 | RGB.red << 8 | RGB.blue;
-        __writeData(j + firstled, col);
+    neopixelWaitForIdle();
+    totalBits = 0;
+    for (uint16_t j = 0; j < size; j++) {
+        uint16_t ledIndex = j + firstled;
+        ledFormat_t fmt = ledFormats[ledIndex];
+
+        colorRGB_t c = HSV_to_RGB(color[j]);
+        uint32_t col = getColorValue(c, fmt);
+        uint8_t bits = getBitsPerLed(fmt);
+        writeBitsToBuffer(totalBits, col, bits);
+        totalBits += bits;
     }
     _sendNeopixel();
 }
 void neopixelSetMoreLeds(uint16_t firstled, colorRGBA_t color[], size_t size)
 {
-    for (uint16_t j = 0; j < size; j++)
-    {
-        colorRGB_t RGB = RGBA_to_RGB(color[j]);
-        uint32_t col = RGB.green << 16 | RGB.red << 8 | RGB.blue;
-        __writeData(j + firstled, col);
+    neopixelWaitForIdle();
+    totalBits = 0;
+    for (uint16_t j = 0; j < size; j++) {
+        uint16_t ledIndex = j + firstled;
+        ledFormat_t fmt = ledFormats[ledIndex];
+
+        colorRGB_t c = RGBA_to_RGB(color[j]);
+        uint32_t col = getColorValue(c, fmt);
+        uint8_t bits = getBitsPerLed(fmt);
+        writeBitsToBuffer(totalBits, col, bits);
+        totalBits += bits;
     }
     _sendNeopixel();
 }
