@@ -19,34 +19,35 @@
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
+#include "CYdLidar.h"
+#include "button.h"
+#include "ledButtonPcb.h"
+#include "level_battery.h"
+#include "motor.h"
+#include "neopixel.h"
 #include "servo.h"
+#include "system.h"
+#include "timer_ms.h"
 #include "uart.h"
 #include "uartLidar.h"
-#include "CYdLidar.h"
-#include "level_battery.h"
-#include "neopixel.h"
-#include "system.h"
-#include "motor.h"
-#include "ledButtonPcb.h"
-#include "button.h"
-#include "timer_ms.h"
+
+#define LIDAR_TR_INTENS 6
 /* Private variables ---------------------------------------------------------*/
 // Prototype for the state machine
-#define FLASH_STORAGE_ADDR (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
+#define FLASH_STORAGE_ADDR                                                     \
+  (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
 
 #define LED_WING_NB 2
-#define LED_WING_POS 0
+#define LED_WING_POS 1
 
-typedef enum
-{
+typedef enum {
   team_blue,
   team_yellow,
 } team_t;
 
 team_t team;
 // numéro du PAMI : 0->superstar / 3 ->  la fosse la plus loin
-typedef enum
-{
+typedef enum {
   Aurore, // superstar
   Elodie, // Première dans la fosse
   Louise, //
@@ -73,8 +74,7 @@ CYdLidar laser;
 
 uint8_t numPamis;
 
-typedef enum
-{
+typedef enum {
   state_debug,
   state_error,
   state_setup,
@@ -85,8 +85,7 @@ typedef enum
   state_end,
 } state_machine_t;
 
-int main(void)
-{
+int main(void) {
 
   state_machine_t state_machine;
 
@@ -105,20 +104,19 @@ int main(void)
   battSetup();
   servoSetup();
   neopixelSetup();
+  neopixelSetFormat(0, FORMAT_GRB_INP33);
 
   __enable_irq();
 
-  HAL_Delay(20); // sinon le condensteur des bouttonPCB est pas chargé, donc le pami va en debug
+  HAL_Delay(20); // sinon le condensteur des bouttonPCB est pas chargé, donc le
+                 // pami va en debug
 
-  if (ButtonPcbGetValue() == GPIO_PIN_RESET)
-  {
+  if (ButtonPcbGetValue() == GPIO_PIN_RESET) {
     neopixelSetLed(0, (colorRGB_t){255, 255, 255});
     state_machine = state_debug;
     HAL_Delay(1000);
     debugfun();
-  }
-  else
-  {
+  } else {
     state_machine = state_setup;
   }
   // Initialisation des différants périphériques
@@ -130,8 +128,7 @@ int main(void)
 
   numPamis = Flash_Read(); // Lire la valeur stockée
 
-  if (numPamis == 0xFF)
-  {                               // 0xFF signifie mémoire vide
+  if (numPamis == 0xFF) {         // 0xFF signifie mémoire vide
     numPamis = DEFAULT_NUM_PAMIS; // Valeur par défaut
     Flash_Write(numPamis);        // Stocker cette valeur
   }
@@ -151,13 +148,13 @@ int main(void)
 
   uartprintf("[main] Pami setup Mode\n");
   uint32_t timer;
-  colorHSV_t hsv[3] = {{120.0, 1.0, 1.0}, {120.0, 1.0, 1.0}, {120.1, 1.0, 1.0}};
+  colorHSV_t hsv = {120.0, 1.0, 1.0};
   colorRGB_t wing_color[LED_WING_NB];
   neopixelClear();
 
   uint8_t inMatch = 0;
   uint32_t timer_button = 0;
-  uint32_t timer_nospam = 0; 
+  uint32_t timer_nospam = 0;
   uint32_t timer_start;
   uint32_t timer_battery = millis() + 1000;
 
@@ -166,8 +163,7 @@ int main(void)
 
   bool wait85s = true;
   // LOOP
-  while (1)
-  {
+  while (1) {
 
     //    laser.scanDataNonBlocking();
     //    if (laser.newDataAvailable())
@@ -181,49 +177,35 @@ int main(void)
     //        oneTimeOnTen++;
     //    }
 
-    if (timer_battery < millis())
-    {
+    if (timer_battery < millis()) {
       timer_battery = millis() + 500;
-      if (battGetPourcentage() < 30.0)
-      {
-        uartprintf("[main] : la batterie est à %f%% T-T\n",battGetPourcentage()); 
-        neopixelSetLed(0, (colorRGB_t){255, 0, 0});
+      if (battGetPourcentage() < 30.0) {
+        uartprintf("[main] : la batterie est à %f%% T-T\n",
+                   battGetPourcentage());
+        neopixelSetAllLeds((colorRGB_t){255, 0, 0});
         HAL_Delay(50);
       }
     }
-    if (timer_nospam < millis())
-    {
+    if (timer_nospam < millis()) {
       timer_nospam = millis() + 3000;
       uartprintf("[main] --- TIME : %ld - %ld--- \n", millis(), HAL_GetTick());
       uartprintf("[main] level batt : %f%%\n", battGetPourcentage());
       uartprintf("[main] level batt : %fV\n", battGetVoltage());
       uartprintf("[main] level batt : %d\n", battGetRawValue());
-      
-      uartprintf("[main] buttonPCBLEVEL : %d\n", ButtonPcbGetValue());
     }
     // timeout le match est fini
-    if (timer_start + 1000000 < millis() && inMatch)
-    {
+    if (timer_start + 1000000 < millis() && inMatch) {
       uartprintf("[main] le pami doit avoir attend sont objectif !");
       state_machine = state_dance;
       motorDisable();
     }
 
-    switch (state_machine)
-    {
+    switch (state_machine) {
     case state_error:
       uartprintf("[main] ERROR in the state machine D: at %ld\n", millis());
       motorDisable();
-
-      for (int i = 0; i < LED_WING_NB; i++)
-      {
-        wing_color[i].red = 255;
-        wing_color[i].green = 0;
-        wing_color[i].blue = 0;
-      }
-      neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
-      while (1)
-      {
+      neopixelSetAllLeds((colorRGB_t){255, 0, 0});
+      while (1) {
         // ne rends jamais la main
       }
       break;
@@ -232,148 +214,121 @@ int main(void)
       oldButtonPcb = actualButtonPCBValue;
       actualButtonPCBValue = ButtonPcbGetValue();
 
-      if (actualButtonPCBValue == GPIO_PIN_RESET && oldButtonPcb == GPIO_PIN_SET)
-      {
+      if (actualButtonPCBValue == GPIO_PIN_RESET &&
+          oldButtonPcb == GPIO_PIN_SET) {
         timer_button = millis();
         uartprintf("[main] timer button : %d\n", timer_button);
       }
-      if (actualButtonPCBValue == GPIO_PIN_SET && oldButtonPcb == GPIO_PIN_RESET)
-      {
-        if (millis() > timer_button + 500)
-        {
+      if (actualButtonPCBValue == GPIO_PIN_SET &&
+          oldButtonPcb == GPIO_PIN_RESET) {
+        if (millis() > timer_button + 500) {
           wait85s = !wait85s;
-          neopixelSetLed(0, (colorRGB_t){0, 255, 0});
+          neopixelSetAllLeds((colorRGB_t){0, 255, 0});
           uartprintf("[main] PAMIS il ne veux pas attendre ^^'\n");
-          HAL_Delay(50);
-        }
-        else
-        {
+          HAL_Delay(100);
+        } else {
           numPamis++;
-          if (numPamis > 3)
-          {
+          if (numPamis > 3) {
             numPamis = 0;
           }
           uartprintf("[main] Pamis change de numéro %d\n", numPamis);
         }
       }
-      if (ButtonTeamGetValue() == GPIO_PIN_RESET)
-      {
+      if (ButtonTeamGetValue() == GPIO_PIN_RESET) {
         team = team_blue;
-      }
-      else
-      {
+      } else {
         team = team_yellow;
       }
 
-      switch (numPamis)
-      {
+      switch (numPamis) {
       // indication lumineux de la position du PAMIS
       case 0: // super star
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 255;
-          wing_color[i].green = 255;
-          wing_color[i].blue = 255;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
+        neopixelSetAllLeds((colorRGB_t){255, 255, 255});
         break;
       case 1:
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 255;
-          wing_color[i].green = 0;
-          wing_color[i].blue = 255;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
+        neopixelSetAllLeds((colorRGB_t){255, 0, 255});
         break;
       case 2:
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 255;
-          wing_color[i].green = 0;
-          wing_color[i].blue = 0;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
+        neopixelSetAllLeds((colorRGB_t){255, 0, 0});
         break;
       case 3:
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 0;
-          wing_color[i].green = 125;
-          wing_color[i].blue = 255;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
+        neopixelSetAllLeds((colorRGB_t){0, 127, 255});
         break;
       }
-
-      if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
-      {
+      if (ButtonTiretteGetValue() == GPIO_PIN_RESET) {
         // la tirette vien d'être mise en place, le macth va bientôt commencer
-        Flash_Write(numPamis); // stock la place du pamis pour le prochain démarage
+
+        Flash_Write(
+            numPamis); // stock la place du pamis pour le prochain démarage
 
         uartprintf("[main] Pami is ready \n");
         state_machine = state_ready;
       }
       break;
     case state_ready:
-      if (ButtonTeamGetValue() == GPIO_PIN_RESET)
-      {
+      if (ButtonTeamGetValue() == GPIO_PIN_RESET) {
         team = team_blue;
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 0;
-          wing_color[i].green = 0;
-          wing_color[i].blue = 255;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
-      }
-      else
-      {
+        neopixelSetAllLeds((colorRGB_t){0, 0, 255});
+      } else {
         team = team_yellow;
-        for (int i = 0; i < LED_WING_NB; i++)
-        {
-          wing_color[i].red = 255;
-          wing_color[i].green = 255;
-          wing_color[i].blue = 0;
-        }
-        neopixelSetMoreLeds(LED_WING_POS, wing_color, LED_WING_NB);
+        neopixelSetAllLeds((colorRGB_t){255, 255, 0});
       }
-      if (ButtonTiretteGetValue() == GPIO_PIN_SET)
-      {
+      if (ButtonTiretteGetValue() == GPIO_PIN_SET) {
         // le match vient de démarrer
         uartprintf("[main] Pami wait, the match is started\n");
         inMatch = 1;
         timer_start = millis();
-        timer = millis() + (wait85s == true ? 85000 : 1000); // TODO set correct value 85000
+        timer =
+            millis() + (wait85s == true ? (85000 - 150)
+                                        : 1000); // TODO set correct value 85000
 
         state_machine = state_wait;
       }
 
       break;
     case state_wait:
-      if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
-      {
+      if (ButtonTiretteGetValue() == GPIO_PIN_RESET) {
         state_machine = state_setup;
       }
-      if (millis() > timer || ButtonPcbGetValue() == GPIO_PIN_RESET)
-      {
+      if (millis() > timer || ButtonPcbGetValue() == GPIO_PIN_RESET) {
         uartprintf("[main] PAMIS want to MOVE >:-(\n");
         state_machine = state_move;
         motorEnable();
+        HAL_Delay(150);
         preSavedDeplacement(numPamis, team);
       }
       break;
     case state_move:
-      // TODO gestion du movement
       static uint8_t isPaused = false;
 
       laser.scanDataNonBlocking();
-      if (laser.newDataAvailable())
-      {
+      if (laser.newDataAvailable()) {
+        bool farEnough = true;
+        for (int i = 0; i++ < GS_MAX_SAMPLE;) {
+
+          if (laser.samples[i].intensity > LIDAR_TR_INTENS &&
+              abs(laser.samples[i].angle) < 5.0) {
+
+            if (laser.samples[i].distance < 20.0) {
+              farEnough = false;
+            }
+          }
+        }
+
+        if (isPaused == false && farEnough == false) {
+          uartprintf("[main] something is too near, pausing movt \n");
+
+          isPaused = true;
+          motorPause();
+        } else if (isPaused == true && farEnough == true) {
+
+          uartprintf("[main] the obstacle is gone\n");
+          isPaused = false;
+          motorResume();
+        }
       }
 
-      if (motorIsReady())
-      {
+      if (motorIsReady()) {
         motorDisable();
         uartprintf("[main] PAMIS DANCE");
         state_machine = state_dance;
@@ -383,11 +338,9 @@ int main(void)
     case state_dance:
       static uint8_t dance_phase = 0;
       // TODO let's go dance !
-      if (timer < millis())
-      {
+      if (timer < millis()) {
         timer = millis() + 300;
-        switch (dance_phase)
-        {
+        switch (dance_phase) {
         case 0:
           servoWrite(SERVO1_CHAN, 750);
           servoWrite(SERVO2_CHAN, 750);
@@ -404,12 +357,9 @@ int main(void)
           break;
         }
       }
-      hsv[0].H = fmod(hsv[0].H + 0.2, 360.0);
-      hsv[1].H = fmod(hsv[1].H + 0.2, 360.0);
-      hsv[2].H = fmod(hsv[2].H + 0.2, 360.0);
-      neopixelSetMoreLeds(0, hsv, 3);
-      if (ButtonTiretteGetValue() == GPIO_PIN_RESET)
-      {
+      hsv.H = fmod(hsv.H + 0.2, 360.0);
+      neopixelSetAllLeds(hsv);
+      if (ButtonTiretteGetValue() == GPIO_PIN_RESET) {
         inMatch = 0;
         state_machine = state_setup;
       }
@@ -424,8 +374,7 @@ int main(void)
   }
 }
 
-void debugfun(void)
-{
+void debugfun(void) {
   servoEnable(SERVO1);
   servoEnable(SERVO2);
 
@@ -442,22 +391,37 @@ void debugfun(void)
   uint16_t noSpam_1on100 = 0;
 
   laser.setup();
-  while (1)
-  {
+  while (1) {
     coleur[0].red = (coleur[0].red + 5) % 256;
     coleur[1].green = (coleur[1].green + 5) % 256;
     coleur[2].blue = (coleur[2].blue + 5) % 256;
 
-    if (noSpam_1on100 >= 100)
-    {
+    neopixelSetMoreLeds(0, coleur, 3);
+    HAL_Delay(50);
+
+    if (noSpam_1on100 >= 100) {
       noSpam_1on100 = 0;
       pami_position_t pos;
       pos = motorGetPosition();
       uartprintf(">angle:%f\n", pos.theta * 360.0 / M_PI);
       uartprintf(">pos:%f:%f|xy\n", pos.x, pos.y);
+      uartprintf(">lidar:%f:%f|xy\n", pos.x, pos.y);
     }
-    else
-    {
+
+    pami_position_t pos;
+    pos = motorGetPosition();
+    laser.scanDataNonBlocking();
+    if (laser.newDataAvailable()) {
+      uartprintf(">lidar:%f:%f|xy|clear\n", pos.x, pos.y);
+      for (int i = 0; i < GS_MAX_SAMPLE; i++) {
+        if (laser.samples[i].intensity > 4) {
+          float ang = (laser.samples[i].angle + pos.theta);
+          uartprintf(">lidar:%f:%f|xy\n",
+                     pos.x + (laser.samples[i].distance * cos(ang)),
+                     pos.y + (laser.samples[i].distance * sin(ang)));
+        }
+      }
+    } else {
       noSpam_1on100++;
     }
 
@@ -477,14 +441,13 @@ void debugfun(void)
           {
             uartprintf("VALEUR GS2 YDLIDAR : \n");
             for (int i = 0 ; i < GS_MAX_SAMPLE; i++ ){
-              uartprintf("[main] GS_SAMPLE[%d] : angle %f / distance %f / instensity %f \n",i,laser.samples[i].angle*360/(2*M_PI) ,laser.samples[i].distance,laser.samples[i].intensity);
+              uartprintf("[main] GS_SAMPLE[%d] : angle %f / distance %f /
+       instensity %f \n",i,laser.samples[i].angle*360/(2*M_PI)
+       ,laser.samples[i].distance,laser.samples[i].intensity);
             }
           }
         }
           */
-
-    neopixelSetMoreLeds(0, coleur, 3);
-    HAL_Delay(50);
 
     // Changer la position des servos
     servoWrite(SERVO1_CHAN, 1300);
@@ -493,8 +456,7 @@ void debugfun(void)
     HAL_Delay(100);
     level_battery = battGetRawValue();
 
-    if (ButtonPcbGetValue() == GPIO_PIN_RESET)
-    {
+    if (ButtonPcbGetValue() == GPIO_PIN_RESET) {
       uartprintf("[main] level batt : %f\n", battGetPourcentage());
       motorEnable();
 
@@ -503,25 +465,32 @@ void debugfun(void)
       motorRotate(MOTOR_DIR_CLOCKWISE, 90, 90, 180, 180);
       motorMove(MOTOR_DIR_FORWARD, 300, 300, 100, 100);
 
-      while (!motorIsReady())
-      {
-        if (noSpam_1on100 >= 100)
-        {
+      while (!motorIsReady()) {
+
+        laser.scanDataNonBlocking();
+        if (noSpam_1on100 >= 100) {
           noSpam_1on100 = 0;
           pami_position_t pos;
           pos = motorGetPosition();
           uartprintf(">angle:%f\n", pos.theta * 360.0 / (2 * M_PI));
           uartprintf(">pos:%f:%f|xy\n", pos.x, pos.y);
-        }
-        else
-        {
+          if (laser.newDataAvailable()) {
+            for (int i = 0; i < GS_MAX_SAMPLE; i++) {
+              if (laser.samples[i].intensity > 4) {
+                float ang = (laser.samples[i].angle + pos.theta);
+                uartprintf(">lidar:%f:%f|xy\n",
+                           pos.x + (laser.samples[i].distance * cos(ang)),
+                           pos.y + (laser.samples[i].distance * sin(ang)));
+              }
+            }
+          }
+        } else {
           noSpam_1on100++;
         }
       }
 
       motorDisable();
-      for (int i = 0; i < 1; i++)
-      {
+      for (int i = 0; i < 1; i++) {
         servoWrite(SERVO1_CHAN, 2000);
         servoWrite(SERVO2_CHAN, 1300);
 
@@ -537,12 +506,10 @@ void debugfun(void)
   }
 }
 
-
 /**
  * @brief Écrit un uint8_t dans la mémoire Flash
  */
-void Flash_Write(uint8_t value)
-{
+void Flash_Write(uint8_t value) {
   HAL_FLASH_Unlock();
 
   // Effacer la page (obligatoire avant écriture)
@@ -552,8 +519,7 @@ void Flash_Write(uint8_t value)
   EraseInitStruct.Page = (FLASH_STORAGE_ADDR - FLASH_BASE) / FLASH_PAGE_SIZE;
   EraseInitStruct.NbPages = 1;
 
-  if (HAL_FLASHEx_Erase(&EraseInitStruct, &PageError) != HAL_OK)
-  {
+  if (HAL_FLASHEx_Erase(&EraseInitStruct, &PageError) != HAL_OK) {
     HAL_FLASH_Lock();
     return;
   }
@@ -567,43 +533,38 @@ void Flash_Write(uint8_t value)
 /**
  * @brief Lit un uint8_t depuis la mémoire Flash
  */
-uint8_t Flash_Read(void)
-{
-  return *((uint8_t *)FLASH_STORAGE_ADDR);
-}
+uint8_t Flash_Read(void) { return *((uint8_t *)FLASH_STORAGE_ADDR); }
 
-uint8_t preSavedDeplacement(uint8_t numPamis, team_t team)
-{
+uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
 
-  uint8_t rotation = (team == team_yellow ? MOTOR_DIR_CLOCKWISE : MOTOR_DIR_ANTICLOCKWISE);
-  float pointrotation = 120;
-  switch (numPamis)
-  {
+  uint8_t rotation =
+      (team == team_yellow ? MOTOR_DIR_CLOCKWISE : MOTOR_DIR_ANTICLOCKWISE);
+  float pointrotation = 80.0;
+  switch (numPamis) {
   case 0:
     // superstar
-    motorMove(MOTOR_DIR_FORWARD, 1000, 250, 200, 0);
+    motorMove(MOTOR_DIR_FORWARD, 1000, 300, 10, 0);
 
-    if (team_blue == team)
-    {
-      pointrotation = -120;
+    if (team_blue == team) {
+      pointrotation = -80.0;
     }
-    motorTurn(MOTOR_DIR_FORWARD, 80.0, rotation, 150);
+    motorTurn(MOTOR_DIR_FORWARD, 90.0, pointrotation, 300);
     motorMove(MOTOR_DIR_FORWARD, 150, 300, 0, 300);
     break;
   case 1:
-    motorMove(MOTOR_DIR_FORWARD, 300, 300, 300, 0);
+    motorMove(MOTOR_DIR_FORWARD, 300, 500, 300, 0);
     motorRotate(rotation, 35, 90);
-    motorMove(MOTOR_DIR_FORWARD, 800, 300, 0, 300);
+    motorMove(MOTOR_DIR_FORWARD, 800, 500, 0, 300);
     motorRotate(!rotation, 85, 90);
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 250, 150, 100, 0);
-    motorRotate(rotation, 35, 45);
-    motorMove(MOTOR_DIR_FORWARD, 700, 180);
-    motorRotate(!rotation, 35, 45);
-    motorMove(MOTOR_DIR_FORWARD, 300, 150);
-    motorRotate(!rotation, 90, 45);
-    motorMove(MOTOR_DIR_FORWARD, 50, 150, 0, 100);
+    motorMove(MOTOR_DIR_FORWARD, 250, 150, 500, 500);
+    motorRotate(rotation, 35, 45, 50, 50);
+    motorMove(MOTOR_DIR_FORWARD, 700, 580, 300, 300);
+    motorRotate(!rotation, 35, 45, 50, 50);
+    motorMove(MOTOR_DIR_FORWARD, 300, 350, 300, 300);
+    motorRotate(!rotation, 90, 45, 50, 50);
+    motorMove(MOTOR_DIR_FORWARD, 50, 150, 300, 300);
     break;
   case 3:
     motorMove(MOTOR_DIR_FORWARD, 200, 150, 100, 0);
