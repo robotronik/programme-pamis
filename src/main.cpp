@@ -549,7 +549,7 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
     motorMove(MOTOR_DIR_FORWARD, 150, 300, 0, 300);
     break;
   case 1:
-    motorMove(MOTOR_DIR_FORWARD, 300, 500, 300, 0);
+    motorMove(MOTOR_DIR_FORWARD, 300, 500, 150, 150);
     motorRotate(rotation, 35, 90);
     motorMove(MOTOR_DIR_FORWARD, 800, 500, 0, 300);
     motorRotate(!rotation, 85, 90);

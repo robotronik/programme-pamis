@@ -59,7 +59,8 @@ volatile step_t stepper2;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
-static float stepDistance_mm = 0.0f;
+static float stepDistance_mm = 10.0f;
+float base_timer = 10.0 ; 
 
 Fifo *actionBuffer;
 
@@ -107,7 +108,11 @@ void motorStepper1Fallback(void) {
       // Phase de décélération : timer augmente
       float n = (float)(stepper1.nbpas - stepper1.nbpasactuel);
       float s = (float)stepper1.deccel;
-      float ratio = n / s;
+      float ratio = (float)n / (float)s;
+      float smoother = ratio * ratio * ratio *
+                       (ratio * (ratio * 6 - 15) + 10); // smootherstep
+      new_timer = base_timer + (1.0f - smoother) * base_timer;
+
       new_timer =
           stepper1.timer + (uint32_t)((1.0f - ratio * ratio) * stepper1.timer);
     } else {
@@ -148,7 +153,11 @@ void motorStepper2Fallback(void) {
       // Phase de décélération : timer augmente
       float n = (float)(stepper2.nbpas - stepper2.nbpasactuel);
       float s = (float)stepper2.deccel;
-      float ratio = n / s;
+      float ratio = (float)n / (float)s;
+      float smoother = ratio * ratio * ratio *
+                       (ratio * (ratio * 6 - 15) + 10); // smootherstep
+      new_timer = base_timer + (1.0f - smoother) * base_timer;
+
       new_timer =
           stepper2.timer + (uint32_t)((1.0f - ratio * ratio) * stepper2.timer);
     } else {
