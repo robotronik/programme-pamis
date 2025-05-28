@@ -40,6 +40,9 @@
 #define LED_WING_NB 2
 #define LED_WING_POS 1
 
+#define SEUIL_LIDAR_DIST 80.0
+#define SEUIL_LIDAR_ANGL 10.0
+
 typedef enum {
   team_blue,
   team_yellow,
@@ -48,18 +51,13 @@ typedef enum {
 team_t team;
 // numéro du PAMI : 0->superstar / 3 ->  la fosse la plus loin
 typedef enum {
-  Aurore, // superstar
-  Elodie, // Première dans la fosse
-  Louise, //
-  Tina,   // dernier pamis
+  // Ni Oublie Ni Pardon
+  Geraldine, // TdS colombiene 2025
+  Angelina,  // 2025
+  Avril,     // lille lycéenne exclu pour avoir porté un jupe 2020
+  Doona,     // Crous  2020
+  Dinah      // lesbienne racisée 2021
 
-  /*Idée - Ni Oublie Ni Pardon
-   * Géraldine TdS colombiene 2025
-   * Angelina  2025
-   * Avril lille lycéenne exclu pour avoir porté un jupe 2020
-   * Doona Crous  2020
-   * Dinah lesbienne racisée 2021
-   */
 } pamis_t;
 #define DEFAULT_NUM_PAMIS 1
 
@@ -108,8 +106,10 @@ int main(void) {
 
   __enable_irq();
 
-  HAL_Delay(20); // sinon le condensteur des bouttonPCB est pas chargé, donc le
-                 // pami va en debug
+  HAL_Delay(150); // sinon le condensteur des bouttonPCB est pas chargé, donc le
+                  // pami va en debug
+
+  laser.setup();
 
   if (ButtonPcbGetValue() == GPIO_PIN_RESET) {
     neopixelSetLed(0, (colorRGB_t){255, 255, 255});
@@ -123,8 +123,8 @@ int main(void) {
   //  Démarrer PWM sur les canaux 1, 2 et 3
   servoEnable(SERVO1);
   servoEnable(SERVO2);
-  servoWrite(SERVO1_CHAN, 1700);
-  servoWrite(SERVO2_CHAN, 1700);
+  servoWrite(SERVO1_CHAN, 500);
+  servoWrite(SERVO2_CHAN, 2500);
 
   numPamis = Flash_Read(); // Lire la valeur stockée
 
@@ -165,17 +165,7 @@ int main(void) {
   // LOOP
   while (1) {
 
-    //    laser.scanDataNonBlocking();
-    //    if (laser.newDataAvailable())
-    //    {
-    //      if (oneTimeOnTen == 10)
-    //      {
-    //        laser.printLidarPoints();
-    //        oneTimeOnTen = 0;
-    //      }
-    //      else
-    //        oneTimeOnTen++;
-    //    }
+    laser.scanDataNonBlocking();
 
     if (timer_battery < millis()) {
       timer_battery = millis() + 500;
@@ -303,13 +293,15 @@ int main(void) {
 
       laser.scanDataNonBlocking();
       if (laser.newDataAvailable()) {
+        // laser.printLidarPoints() ;
         bool farEnough = true;
         for (int i = 0; i++ < GS_MAX_SAMPLE;) {
 
           if (laser.samples[i].intensity > LIDAR_TR_INTENS &&
-              abs(laser.samples[i].angle) < 5.0) {
+              abs(laser.samples[i].angle) < ((SEUIL_LIDAR_ANGL * 2 * PI) / 360.0)) {
 
-            if (laser.samples[i].distance < 20.0) {
+            if (laser.samples[i].distance < SEUIL_LIDAR_DIST) {
+              uartprintf("detection d'un obstacle \n");
               farEnough = false;
             }
           }
@@ -339,16 +331,16 @@ int main(void) {
       static uint8_t dance_phase = 0;
       // TODO let's go dance !
       if (timer < millis()) {
-        timer = millis() + 300;
+        timer = millis() + 400;
         switch (dance_phase) {
         case 0:
-          servoWrite(SERVO1_CHAN, 750);
-          servoWrite(SERVO2_CHAN, 750);
+          servoWrite(SERVO1_CHAN, 700);
+          servoWrite(SERVO2_CHAN, 700);
           dance_phase = 1;
           break;
         case 1:
-          servoWrite(SERVO1_CHAN, 2200);
-          servoWrite(SERVO2_CHAN, 2200);
+          servoWrite(SERVO1_CHAN, 2000);
+          servoWrite(SERVO2_CHAN, 2000);
           dance_phase = 0;
           break;
 
@@ -543,12 +535,17 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
   switch (numPamis) {
   case 0:
     // superstar
-    motorMove(MOTOR_DIR_FORWARD, 1000, 300, 10, 0);
+    
+    motorMove(MOTOR_DIR_FORWARD, 100, 100, 50, 100); //démarafe
+    motorMove(MOTOR_DIR_FORWARD, 400, 300, 100, 100); //avant rampe 
+    motorMove(MOTOR_DIR_FORWARD, 600, 200, 50, 100); //rampe 
+    motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100); //scéne
 
     if (team_blue == team) {
       pointrotation = -80.0;
     }
-    motorTurn(MOTOR_DIR_FORWARD, 90.0, pointrotation, 300);
+    // motorTurn(MOTOR_DIR_FORWARD, 90.0, pointrotation, 300);
+    motorRotate(rotation, 90, 150);
     motorMove(MOTOR_DIR_FORWARD, 150, 300, 0, 300);
     break;
   case 1:
