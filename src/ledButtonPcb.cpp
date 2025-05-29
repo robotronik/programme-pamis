@@ -18,6 +18,8 @@ void LedPcbSetup(void)
     HAL_GPIO_Init(LEDPCB_Port, &GPIO_InitStruct);
 }
 
+
+
 void LedPcbToggle(void){
     HAL_GPIO_TogglePin(LEDPCB_Port,LEDPCB_Pin);
 }
@@ -41,4 +43,22 @@ void ButtonPcbSetup(void)
 }
 GPIO_PinState ButtonPcbGetValue(void){
     return HAL_GPIO_ReadPin(BUTTONPCB_Port,BUTTONPCB_Pin);
+}
+
+
+void CapteurSetup(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = CAPTEUR_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(CAPTEUR_Port, &GPIO_InitStruct);
+}
+
+
+GPIO_PinState CapteurGetValue(void){
+    return HAL_GPIO_ReadPin(CAPTEUR_Port,CAPTEUR_Pin);
 }

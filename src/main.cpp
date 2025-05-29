@@ -91,10 +91,12 @@ int main(void) {
   HAL_Init();
 
   SystemClock_Config();
+  
+  LedPcbSetup();
+
 
   timerMsSetup();
   motorSetup();
-  LedPcbSetup();
   ButtonPcbSetup();
   ButtonSetup();
   uartSetup();
@@ -182,9 +184,10 @@ int main(void) {
       uartprintf("[main] level batt : %f%%\n", battGetPourcentage());
       uartprintf("[main] level batt : %fV\n", battGetVoltage());
       uartprintf("[main] level batt : %d\n", battGetRawValue());
+      uartprintf("[main] timer start + 100s : %d\n",timer_start); 
     }
     // timeout le match est fini
-    if (timer_start + 1000000 < millis() && inMatch) {
+    if (timer_start < HAL_GetTick() && inMatch) {
       uartprintf("[main] le pami doit avoir attend sont objectif !");
       state_machine = state_dance;
       motorDisable();
@@ -267,7 +270,7 @@ int main(void) {
         // le match vient de démarrer
         uartprintf("[main] Pami wait, the match is started\n");
         inMatch = 1;
-        timer_start = millis();
+        timer_start = millis() + 100000;
         timer =
             millis() + (wait85s == true ? (85000 - 150)
                                         : 1000); // TODO set correct value 85000
@@ -282,6 +285,9 @@ int main(void) {
       }
       if (millis() > timer || ButtonPcbGetValue() == GPIO_PIN_RESET) {
         uartprintf("[main] PAMIS want to MOVE >:-(\n");
+        if (numPamis == 0) {
+          CapteurSetup();
+        }
         state_machine = state_move;
         motorEnable();
         HAL_Delay(150);
@@ -298,7 +304,8 @@ int main(void) {
         for (int i = 0; i++ < GS_MAX_SAMPLE;) {
 
           if (laser.samples[i].intensity > LIDAR_TR_INTENS &&
-              abs(laser.samples[i].angle) < ((SEUIL_LIDAR_ANGL * 2 * PI) / 360.0)) {
+              abs(laser.samples[i].angle) <
+                  ((SEUIL_LIDAR_ANGL * 2 * PI) / 360.0)) {
 
             if (laser.samples[i].distance < SEUIL_LIDAR_DIST) {
               uartprintf("detection d'un obstacle \n");
@@ -321,10 +328,24 @@ int main(void) {
       }
 
       if (motorIsReady()) {
-        motorDisable();
-        uartprintf("[main] PAMIS DANCE");
-        state_machine = state_dance;
-        timer = millis();
+        if (numPamis == 0) {
+
+          motorMove(MOTOR_DIR_FORWARD, 400, 100, 50, 100); // démarafe
+          while (!motorIsReady() && CapteurGetValue() == GPIO_PIN_RESET) {
+          }
+
+          motorDisable();
+          uartprintf("[main] PAMIS DANCE");
+          state_machine = state_dance;
+          timer = millis();
+
+        } else {
+
+          motorDisable();
+          uartprintf("[main] PAMIS DANCE");
+          state_machine = state_dance;
+          timer = millis();
+        }
       }
       break;
     case state_dance:
@@ -381,6 +402,7 @@ void debugfun(void) {
   uartprintf("[main] MODE DEBUG ACTIVÉ !!!\n");
   uint16_t oneTimeOnTen = 0;
   uint16_t noSpam_1on100 = 0;
+  CapteurSetup();
 
   laser.setup();
   while (1) {
@@ -398,6 +420,9 @@ void debugfun(void) {
       uartprintf(">angle:%f\n", pos.theta * 360.0 / M_PI);
       uartprintf(">pos:%f:%f|xy\n", pos.x, pos.y);
       uartprintf(">lidar:%f:%f|xy\n", pos.x, pos.y);
+
+      uartprintf(">capteur:%d\n", CapteurGetValue());
+      uartprintf("BAGARRE : le capteur est %d\n", CapteurGetValue());
     }
 
     pami_position_t pos;
@@ -411,6 +436,9 @@ void debugfun(void) {
           uartprintf(">lidar:%f:%f|xy\n",
                      pos.x + (laser.samples[i].distance * cos(ang)),
                      pos.y + (laser.samples[i].distance * sin(ang)));
+
+          uartprintf(">capteur:%d\n", CapteurGetValue());
+          uartprintf("BAGARRE : le capteur est %d\n", CapteurGetValue());
         }
       }
     } else {
@@ -535,11 +563,11 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
   switch (numPamis) {
   case 0:
     // superstar
-    
-    motorMove(MOTOR_DIR_FORWARD, 100, 100, 50, 100); //démarafe
-    motorMove(MOTOR_DIR_FORWARD, 400, 300, 100, 100); //avant rampe 
-    motorMove(MOTOR_DIR_FORWARD, 600, 200, 50, 100); //rampe 
-    motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100); //scéne
+
+    motorMove(MOTOR_DIR_FORWARD, 100, 75, 30, 100);  // démarafe
+    motorMove(MOTOR_DIR_FORWARD, 400, 300, 100, 100); // avant rampe
+    motorMove(MOTOR_DIR_FORWARD, 650, 200, 50, 100);  // rampe
+    //motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100);  // scéne
 
     if (team_blue == team) {
       pointrotation = -80.0;
@@ -549,10 +577,13 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
     motorMove(MOTOR_DIR_FORWARD, 150, 300, 0, 300);
     break;
   case 1:
-    motorMove(MOTOR_DIR_FORWARD, 300, 500, 150, 150);
+
+    motorMove(MOTOR_DIR_FORWARD, 100, 100, 50, 100); // démarafe
+    motorMove(MOTOR_DIR_FORWARD, 200, 300, 50, 50);
     motorRotate(rotation, 35, 90);
-    motorMove(MOTOR_DIR_FORWARD, 800, 500, 0, 300);
+    motorMove(MOTOR_DIR_FORWARD, 750, 300, 50, 50);
     motorRotate(!rotation, 85, 90);
+    motorMove(MOTOR_DIR_FORWARD,50,200,50,50);
     break;
   case 2:
     motorMove(MOTOR_DIR_FORWARD, 250, 150, 500, 500);

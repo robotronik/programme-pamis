@@ -13,6 +13,8 @@
 
 #define LEDPCB_Pin GPIO_PIN_7 
 #define LEDPCB_Port GPIOA
+#define CAPTEUR_Pin GPIO_PIN_9
+#define CAPTEUR_Port GPIOA
 #define BUTTONPCB_Pin GPIO_PIN_10
 #define BUTTONPCB_Port GPIOA 
 
@@ -24,5 +26,9 @@ void LedPcbOff(void);
 
 void ButtonPcbSetup(void);
 GPIO_PinState ButtonPcbGetValue(void);
+
+
+void CapteurSetup(void);
+GPIO_PinState CapteurGetValue(void);
 
 #endif
