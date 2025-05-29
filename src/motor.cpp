@@ -60,7 +60,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 static float stepDistance_mm = 10.0f;
-float base_timer = 10.0 ; 
+float base_timer = 10.0;
 
 Fifo *actionBuffer;
 
