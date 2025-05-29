@@ -37,8 +37,12 @@
 #define FLASH_STORAGE_ADDR                                                     \
   (FLASH_BASE + (FLASH_SIZE - FLASH_PAGE_SIZE)) // Dernière page Flash
 
-#define LED_WING_NB 2
-#define LED_WING_POS 1
+#define SERVO1_STANDBY 500
+#define SERVO2_STANDBY 2500
+#define SERVO1_DANCE_2
+#define SERVO2_DANCE_2
+#define SERVO1_DANCE_1
+#define SERVO2_DANCE_1
 
 #define SEUIL_LIDAR_DIST 80.0
 #define SEUIL_LIDAR_ANGL 10.0
@@ -91,9 +95,8 @@ int main(void) {
   HAL_Init();
 
   SystemClock_Config();
-  
-  LedPcbSetup();
 
+  LedPcbSetup();
 
   timerMsSetup();
   motorSetup();
@@ -125,8 +128,8 @@ int main(void) {
   //  Démarrer PWM sur les canaux 1, 2 et 3
   servoEnable(SERVO1);
   servoEnable(SERVO2);
-  servoWrite(SERVO1_CHAN, 500);
-  servoWrite(SERVO2_CHAN, 2500);
+  servoWrite(SERVO1_CHAN, SERVO1_STANDBY);
+  servoWrite(SERVO2_CHAN, SERVO2_STANDBY);
 
   numPamis = Flash_Read(); // Lire la valeur stockée
 
@@ -135,23 +138,11 @@ int main(void) {
     Flash_Write(numPamis);        // Stocker cette valeur
   }
 
-  // HAL_Delay(1000);//il parait que c'est obligatoirepour le lidar
-  // laser.setup();
-
   uartprintf("[main] Un petit uart de debug ! sur la pin PB3\n");
-
-  // //NONblocking
-  // while (1){
-  //     laser.scanDataNonBlocking();
-  //     if(laser.newDataAvailable()){
-  //         laser.printLidarPoints();
-  //     }
-  // }
 
   uartprintf("[main] Pami setup Mode\n");
   uint32_t timer;
   colorHSV_t hsv = {120.0, 1.0, 1.0};
-  colorRGB_t wing_color[LED_WING_NB];
   neopixelClear();
 
   uint8_t inMatch = 0;
@@ -184,7 +175,7 @@ int main(void) {
       uartprintf("[main] level batt : %f%%\n", battGetPourcentage());
       uartprintf("[main] level batt : %fV\n", battGetVoltage());
       uartprintf("[main] level batt : %d\n", battGetRawValue());
-      uartprintf("[main] timer start + 100s : %d\n",timer_start); 
+      uartprintf("[main] timer start + 100s : %d\n", timer_start);
     }
     // timeout le match est fini
     if (timer_start < HAL_GetTick() && inMatch) {
@@ -255,6 +246,9 @@ int main(void) {
             numPamis); // stock la place du pamis pour le prochain démarage
 
         uartprintf("[main] Pami is ready \n");
+
+        servoWrite(SERVO1_CHAN, SERVO1_STANDBY);
+        servoWrite(SERVO2_CHAN, SERVO2_STANDBY);
         state_machine = state_ready;
       }
       break;
@@ -271,17 +265,27 @@ int main(void) {
         uartprintf("[main] Pami wait, the match is started\n");
         inMatch = 1;
         timer_start = millis() + 100000;
-        timer =
-            millis() + (wait85s == true ? (85000 - 150)
-                                        : 1000); // TODO set correct value 85000
+        timer = millis() + (wait85s == true ? 85000 : 1000);
 
+        servoWrite(SERVO1_CHAN, SERVO1_STANDBY);
+        servoWrite(SERVO2_CHAN, SERVO2_STANDBY);
         state_machine = state_wait;
       }
 
       break;
     case state_wait:
+      if (ButtonTeamGetValue() == GPIO_PIN_RESET) {
+        team = team_blue;
+        neopixelSetAllLeds((colorRGB_t){127, 0, 127});
+      } else {
+        team = team_yellow;
+        neopixelSetAllLeds((colorRGB_t){127, 0, 127});
+      }
       if (ButtonTiretteGetValue() == GPIO_PIN_RESET) {
         state_machine = state_setup;
+      }
+      if (millis() > timer - 150) {
+        motorEnable();
       }
       if (millis() > timer || ButtonPcbGetValue() == GPIO_PIN_RESET) {
         uartprintf("[main] PAMIS want to MOVE >:-(\n");
@@ -289,12 +293,12 @@ int main(void) {
           CapteurSetup();
         }
         state_machine = state_move;
-        motorEnable();
-        HAL_Delay(150);
         preSavedDeplacement(numPamis, team);
       }
+
       break;
     case state_move:
+
       static uint8_t isPaused = false;
 
       laser.scanDataNonBlocking();
@@ -352,7 +356,7 @@ int main(void) {
       static uint8_t dance_phase = 0;
       // TODO let's go dance !
       if (timer < millis()) {
-        timer = millis() + 400;
+        timer = millis() + 400; // agitation des bras
         switch (dance_phase) {
         case 0:
           servoWrite(SERVO1_CHAN, 700);
@@ -564,10 +568,10 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
   case 0:
     // superstar
 
-    motorMove(MOTOR_DIR_FORWARD, 100, 75, 30, 100);  // démarafe
+    motorMove(MOTOR_DIR_FORWARD, 100, 75, 30, 100);   // démarafe
     motorMove(MOTOR_DIR_FORWARD, 400, 300, 100, 100); // avant rampe
     motorMove(MOTOR_DIR_FORWARD, 650, 200, 50, 100);  // rampe
-    //motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100);  // scéne
+    // motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100);  // scéne
 
     if (team_blue == team) {
       pointrotation = -80.0;
@@ -583,7 +587,7 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
     motorRotate(rotation, 35, 90);
     motorMove(MOTOR_DIR_FORWARD, 750, 300, 50, 50);
     motorRotate(!rotation, 85, 90);
-    motorMove(MOTOR_DIR_FORWARD,50,200,50,50);
+    motorMove(MOTOR_DIR_FORWARD, 50, 200, 50, 50);
     break;
   case 2:
     motorMove(MOTOR_DIR_FORWARD, 250, 150, 500, 500);
