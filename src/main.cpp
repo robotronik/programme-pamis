@@ -27,7 +27,6 @@
 #include "neopixel.h"
 #include "servo.h"
 #include "system.h"
-#include "timer_ms.h"
 #include "uart.h"
 #include "uartLidar.h"
 
@@ -98,7 +97,6 @@ int main(void) {
 
   LedPcbSetup();
 
-  timerMsSetup();
   motorSetup();
   ButtonPcbSetup();
   ButtonSetup();
@@ -149,7 +147,7 @@ int main(void) {
   uint32_t timer_button = 0;
   uint32_t timer_nospam = 0;
   uint32_t timer_start;
-  uint32_t timer_battery = millis() + 1000;
+  uint32_t timer_battery = HAL_GetTick () + 1000;
 
   GPIO_PinState oldButtonPcb = GPIO_PIN_SET;
   GPIO_PinState actualButtonPCBValue = GPIO_PIN_SET;
@@ -160,8 +158,8 @@ int main(void) {
 
     laser.scanDataNonBlocking();
 
-    if (timer_battery < millis()) {
-      timer_battery = millis() + 500;
+    if (timer_battery < HAL_GetTick ()) {
+      timer_battery = HAL_GetTick () + 500;
       if (battGetPourcentage() < 30.0) {
         uartprintf("[main] : la batterie est à %f%% T-T\n",
                    battGetPourcentage());
@@ -169,9 +167,9 @@ int main(void) {
         HAL_Delay(50);
       }
     }
-    if (timer_nospam < millis()) {
-      timer_nospam = millis() + 3000;
-      uartprintf("[main] --- TIME : %ld - %ld--- \n", millis(), HAL_GetTick());
+    if (timer_nospam < HAL_GetTick ()) {
+      timer_nospam = HAL_GetTick () + 3000;
+      uartprintf("[main] --- TIME : %ld - %ld--- \n", HAL_GetTick (), HAL_GetTick());
       uartprintf("[main] level batt : %f%%\n", battGetPourcentage());
       uartprintf("[main] level batt : %fV\n", battGetVoltage());
       uartprintf("[main] level batt : %d\n", battGetRawValue());
@@ -186,7 +184,7 @@ int main(void) {
 
     switch (state_machine) {
     case state_error:
-      uartprintf("[main] ERROR in the state machine D: at %ld\n", millis());
+      uartprintf("[main] ERROR in the state machine D: at %ld\n", HAL_GetTick ());
       motorDisable();
       neopixelSetAllLeds((colorRGB_t){255, 0, 0});
       while (1) {
@@ -200,12 +198,12 @@ int main(void) {
 
       if (actualButtonPCBValue == GPIO_PIN_RESET &&
           oldButtonPcb == GPIO_PIN_SET) {
-        timer_button = millis();
+        timer_button = HAL_GetTick ();
         uartprintf("[main] timer button : %d\n", timer_button);
       }
       if (actualButtonPCBValue == GPIO_PIN_SET &&
           oldButtonPcb == GPIO_PIN_RESET) {
-        if (millis() > timer_button + 500) {
+        if (HAL_GetTick () > timer_button + 500) {
           wait85s = !wait85s;
           neopixelSetAllLeds((colorRGB_t){0, 255, 0});
           uartprintf("[main] PAMIS il ne veux pas attendre ^^'\n");
@@ -264,8 +262,8 @@ int main(void) {
         // le match vient de démarrer
         uartprintf("[main] Pami wait, the match is started\n");
         inMatch = 1;
-        timer_start = millis() + 100000;
-        timer = millis() + (wait85s == true ? 85000 : 1000);
+        timer_start = HAL_GetTick () + 100000;
+        timer = HAL_GetTick () + (wait85s == true ? 85000 : 1000);
 
         servoWrite(SERVO1_CHAN, SERVO1_STANDBY);
         servoWrite(SERVO2_CHAN, SERVO2_STANDBY);
@@ -284,10 +282,10 @@ int main(void) {
       if (ButtonTiretteGetValue() == GPIO_PIN_RESET) {
         state_machine = state_setup;
       }
-      if (millis() > timer - 150) {
+      if (HAL_GetTick () > timer - 150) {
         motorEnable();
       }
-      if (millis() > timer || ButtonPcbGetValue() == GPIO_PIN_RESET) {
+      if (HAL_GetTick () > timer || ButtonPcbGetValue() == GPIO_PIN_RESET) {
         uartprintf("[main] PAMIS want to MOVE >:-(\n");
         if (numPamis == 0) {
           CapteurSetup();
@@ -341,22 +339,22 @@ int main(void) {
           motorDisable();
           uartprintf("[main] PAMIS DANCE");
           state_machine = state_dance;
-          timer = millis();
+          timer = HAL_GetTick ();
 
         } else {
 
           motorDisable();
           uartprintf("[main] PAMIS DANCE");
           state_machine = state_dance;
-          timer = millis();
+          timer = HAL_GetTick ();
         }
       }
       break;
     case state_dance:
       static uint8_t dance_phase = 0;
       // TODO let's go dance !
-      if (timer < millis()) {
-        timer = millis() + 400; // agitation des bras
+      if (timer < HAL_GetTick ()) {
+        timer = HAL_GetTick () + 400; // agitation des bras
         switch (dance_phase) {
         case 0:
           servoWrite(SERVO1_CHAN, 700);
