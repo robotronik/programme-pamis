@@ -43,7 +43,8 @@
 #define SERVO1_DANCE_1
 #define SERVO2_DANCE_1
 
-#define SEUIL_LIDAR_DIST 80.0
+#define SEUIL_LIDAR_DIST 90.0
+#define SEUIL_SUPER_DIST 70.0
 #define SEUIL_LIDAR_ANGL 10.0
 
 typedef enum {
@@ -313,7 +314,8 @@ int main(void) {
               abs(laser.samples[i].angle) <
                   ((SEUIL_LIDAR_ANGL * 2 * PI) / 360.0)) {
 
-            if (laser.samples[i].distance < SEUIL_LIDAR_DIST) {
+            if (laser.samples[i].distance <
+                (numPamis == 0 ? SEUIL_SUPER_DIST : SEUIL_LIDAR_DIST)) {
               uartprintf("detection d'un obstacle \n");
               farEnough = false;
             }
@@ -570,7 +572,7 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
   case 0:
     // superstar
 
-    motorMove(MOTOR_DIR_FORWARD, 100, 150, 30, 100);  // démarafe
+    motorMove(MOTOR_DIR_FORWARD, 100, 125, 30, 100);  // démarafe
     motorMove(MOTOR_DIR_FORWARD, 400, 300, 100, 100); // avant rampe
     motorMove(MOTOR_DIR_FORWARD, 650, 200, 50, 100);  // rampe
     // motorMove(MOTOR_DIR_FORWARD, 200, 300, 10, 100);  // scéne
@@ -580,35 +582,33 @@ uint8_t preSavedDeplacement(uint8_t numPamis, team_t team) {
     }
     // motorTurn(MOTOR_DIR_FORWARD, 90.0, pointrotation, 300);
     motorRotate(rotation, 90, 150);
-    motorMove(MOTOR_DIR_FORWARD, 150, 300, 0, 300);
+    motorMove(MOTOR_DIR_FORWARD, 200, 300, 100, 100);
     break;
   case 1:
 
-    motorMove(MOTOR_DIR_FORWARD, 100, 150, 50, 100); // démarafe
-    motorMove(MOTOR_DIR_FORWARD, 200, 300, 50, 50);
-    motorRotate(rotation, 35, 90);
-    motorMove(MOTOR_DIR_FORWARD, 750, 300, 50, 50);
-    motorRotate(!rotation, 85, 90);
-    motorMove(MOTOR_DIR_FORWARD, 50, 200, 50, 50);
+    motorMove(MOTOR_DIR_FORWARD, 100, 75, 50, 100); // démarafe
+    motorMove(MOTOR_DIR_FORWARD, 50, 310, 50, 50);
+    motorRotate(rotation, 32, 90);
+    motorMove(MOTOR_DIR_FORWARD, 655, 310, 50, 50);
+    motorRotate(!rotation, 32, 90);
+    motorMove(MOTOR_DIR_FORWARD, 140, 310, 50, 50);
+    motorRotate(!rotation, 35, 90);
     break;
   case 2:
-    motorMove(MOTOR_DIR_FORWARD, 100, 150, 50, 100); // démarafe
-    motorMove(MOTOR_DIR_FORWARD, 250, 150, 500, 500);
-    motorRotate(rotation, 35, 45, 50, 50);
-    motorMove(MOTOR_DIR_FORWARD, 700, 580, 300, 300);
-    motorRotate(!rotation, 35, 45, 50, 50);
-    motorMove(MOTOR_DIR_FORWARD, 300, 350, 300, 300);
-    motorRotate(!rotation, 90, 45, 50, 50);
-    motorMove(MOTOR_DIR_FORWARD, 50, 150, 300, 300);
+    motorMove(MOTOR_DIR_FORWARD, 100, 125, 50, 100); // démarafe
+    motorRotate(rotation, 21, 45);
+    motorMove(MOTOR_DIR_FORWARD, 760, 350, 100, 75);
+    motorRotate(!rotation, 21, 45);
+    motorMove(MOTOR_DIR_FORWARD, 500, 400, 100, 75);
+    motorRotate(!rotation, 90, 45);
     break;
   case 3:
 
     motorMove(MOTOR_DIR_FORWARD, 50, 100, 50, 100); // démarage
-    motorMove(MOTOR_DIR_FORWARD, 200, 150, 100, 0);
-    motorRotate(rotation, 35, 45);
-    motorMove(MOTOR_DIR_FORWARD, 800, 180);
-    motorRotate(!rotation, 35, 45);
-    motorMove(MOTOR_DIR_FORWARD, 1000, 150);
+    motorRotate(rotation, 15, 45);
+    motorMove(MOTOR_DIR_FORWARD, 750, 400, 100, 75);
+    motorRotate(!rotation, 15, 45);
+    motorMove(MOTOR_DIR_FORWARD, 1000, 400, 100, 75);
     motorRotate(!rotation, 115, 45);
     motorMove(MOTOR_DIR_FORWARD, 80, 180, 0, 100);
     break;
